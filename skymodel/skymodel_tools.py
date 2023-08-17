@@ -38,7 +38,13 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
 
     dnu = config.getfloat("observation", "channel_width")
 
-    rest_freq = config.getfloat("observation", "rest_freq")
+    # rest frequency defined only for spectral mode. Eliminate the need for this keyword in continuum
+    rest_freq=1.420405752e+9 
+    try:
+        rest_freq = config.getfloat("observation", "rest_freq")
+    except:
+        print("default rest frequency")
+    
     base_freq = config.getfloat("observation", "lowest_frequency")
     top_freq = config.getfloat("observation", "highest_frequency")
     bw = top_freq - base_freq

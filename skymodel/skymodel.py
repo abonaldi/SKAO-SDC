@@ -353,6 +353,7 @@ def runSkyModel(config):
     )
     # set image properties
     psf_maj_arcsec = config.getfloat("skymodel", "simple_psf_maj")
+    
     psf_maj = psf_maj_arcsec * galsim.arcsec
     psf_min = config.getfloat("skymodel", "simple_psf_min") * galsim.arcsec
     psf_pa = config.getfloat("skymodel", "simple_psf_pa") * galsim.degrees

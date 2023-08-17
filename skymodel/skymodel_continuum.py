@@ -243,18 +243,17 @@ def add_source_continuum(
             fitsf_p = FITS(all_gals_fname + "_pola.fits", "rw")
             fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
             fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
-            print('pola on catalogue',cat_gal['polafrac'],cat_gal['EVPA'])
+            
         
             img3_pola= img3*cat_gal['polafrac']
-            print('pola on image',np.sum(img3),np.sum(img3_pola))
             img3_q=img3_pola*np.cos(cat_gal['EVPA']/ 180. * np.pi)
             img3_u=img3_pola*np.sin(cat_gal['EVPA']/ 180. * np.pi)
-            print('pola on image',np.sum(img3_q),np.sum(img3_u))
+            
             
             region = fitsf_p[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-            print(region.shape,img3_pola.shape,np.sum(region))
+            
             img3_pola += region
-            print(region.shape,img3_pola.shape,np.sum(img3_pola))
+            
             fitsf_p[0].write(img3_pola, blc0, blc1, blc2, trc0, trc1, trc2)
 
 
@@ -332,11 +331,12 @@ def runSkyModel(config):
     if not os.path.exists(data_path):
         os.system('mkdir -p '+ data_path)
 
+   
     # set image properties
-    psf_maj_arcsec = config.getfloat("skymodel", "simple_psf_maj")
+    psf_maj_arcsec = config.getfloat("observation", "simple_psf_maj")
     psf_maj = psf_maj_arcsec * galsim.arcsec
-    psf_min = config.getfloat("skymodel", "simple_psf_min") * galsim.arcsec
-    psf_pa = config.getfloat("skymodel", "simple_psf_pa") * galsim.degrees
+    psf_min = config.getfloat("observation", "simple_psf_min") * galsim.arcsec
+    psf_pa = config.getfloat("observation", "simple_psf_pa") * galsim.degrees
     pixel_scale = config.getfloat("skymodel", "pixel_scale")
     pixel_scale_str = str(pixel_scale).split()[0]
     fov = config.getfloat("field", "field_of_view")
@@ -423,10 +423,10 @@ def runSkyModel(config):
         data_path_large_files + config.get("field", "fits_prefix") 
     )
 
-    if os.path.exists(all_gals_fname+".fits"):
-        print ('**** message from pipeline: '+all_gals_fname+' already exists') 
-        print ('**** message from pipeline: not running skymodel_continuum this time')
-        return
+    #if os.path.exists(all_gals_fname+".fits"):
+    #    print ('**** message from pipeline: '+all_gals_fname+'.fits already exists') 
+    #    print ('**** message from pipeline: not running skymodel_continuum this time')
+    #    return
 
     os.system("rm {0}".format(all_gals_fname+ ".fits"))
     os.system("rm {0}".format(all_gals_fname + "_z.fits"))
@@ -591,7 +591,7 @@ def runSkyModel(config):
          # here generate polarization angle EVPA=2*chi.
          # convention it is 0 at North and anticlockwise
          np.random.seed(mother_seed + 1093548)
-         evpa = np.random.uniform(low=0, high=360.0, size=len(cat)
+         evpa = np.random.uniform(low=0., high=360.0, size=len(cat)
          )  
          cat["EVPA"] = evpa
          
@@ -609,6 +609,16 @@ def runSkyModel(config):
         flux_sel_freq = config.get("continuum", "fluxcut_frequency")
         cat["flux_selection"] = cat_read["I" + flux_sel_freq] * 1.0e-3  # Jy
 
+    # read the relevant quantities to implement redshift range selection
+    if config.getboolean("continuum", "zrange") == True:
+        zmin = config.getfloat("continuum", "zmin")
+        zmax = config.getfloat("continuum", "zmax")
+
+    
+    
+    
+
+        
     maj = cat_read["size"]  # arcsec
     cat["Maj"] = maj
     cat["Maj"].unit = "arcsec"
@@ -620,13 +630,13 @@ def runSkyModel(config):
     cat["Min"].unit = "arcsec"
 
     # ANNA: check if those are still needed
-    scale_radius_to_hlr = 1.67834699
-    cat["Maj_halflight"] = cat_read["size"] * scale_radius_to_hlr
-    cat["Maj_halflight"].unit = "arcsec"
-    cat["Min_halflight"] = cat_read["size"] * scale_radius_to_hlr
-    cat["Min_halflight"].unit = "arcsec"
-    cat["Peak_flux"] = cat["Total_flux"]  # / (2.*cat['Maj']*arcsectorad)
-    cat["Peak_flux"].unit = "Jy"
+    #scale_radius_to_hlr = 1.67834699
+    #cat["Maj_halflight"] = cat_read["size"] * scale_radius_to_hlr
+    #cat["Maj_halflight"].unit = "arcsec"
+    #cat["Min_halflight"] = cat_read["size"] * scale_radius_to_hlr
+    #cat["Min_halflight"].unit = "arcsec"
+    #cat["Peak_flux"] = cat["Total_flux"]  # / (2.*cat['Maj']*arcsectorad)
+    #cat["Peak_flux"].unit = "Jy"
     # ANNA: end check if those are still needed
 
     cat["Rs"] = cat_read["Rs"]
@@ -676,6 +686,16 @@ def runSkyModel(config):
         print("number of sources excluded")
         print(len_old - len(cat))
 
+    if config.getboolean("continuum", "zrange") == True:
+        print("applying redshift range cut")
+        len_old = len(cat)
+        cat = cat[(cat["z"] >= zmin)]
+        cat = cat[(cat["z"] < zmax)]
+        print("number of sources excluded")
+        print(len_old - len(cat))
+        print(min(cat["z"]),max(cat["z"]))
+    
+        
     # define additional source attributes not contained in the TRECS cat
     cat["Atlas_source"] = np.zeros(len(cat)).astype(np.str)
     cat["Unresolved"] = np.zeros(len(cat)).astype(np.str)
@@ -695,46 +715,7 @@ def runSkyModel(config):
     ranid[cat["Rs"] > 0.5] = ranid[cat["Rs"] > 0.5] + 10
     cat["ranid"] = ranid
 
-    #if config.get("continuum", "sizescale") == "constant":
-    #    cat["Maj"] = np.ones_like(cat["Maj"]) * config.getfloat(
-    #        "continuum", "sizescale_constant_value"
-    #    )
-    #    scale_radius_to_hlr = 1.67834699
-    #    cat["Maj_halflight"] = cat["Maj"] * scale_radius_to_hlr
-    #    cat["Maj_halflight"].unit = "arcsec"
-    #    cat["Min"] = cat["Maj"] * cat["q"]
-    #    cat["Min"].unit = "arcsec"
-    #    cat["Min_halflight"] = cat["Maj_halflight"] * cat["q"]
-    #    cat["Min_halflight"].unit = "arcsec"
-    #    # number of sources, on grid if requested
-
-
-
-    # flux range
-    #if config.get("continuum", "fluxscale") == "constant":
-    #    cat["Total_flux"] = np.ones_like(cat["Total_flux"]) * config.getfloat(
-    #        "continuum", "fluxscale_constant_value"
-    #    )
-    #    cat["Peak_flux"] = cat["Total_flux"] / (2.0 * cat["Maj"] * arcsectorad)
-
-    # scale flux
-    #cat["Total_flux"] = cat["Total_flux"] * config.getfloat(
-    #    "continuum", "flux_factor"
-    #)
-    #cat["Peak_flux"] = cat["Peak_flux"] * config.getfloat(
-    #    "continuum", "flux_factor"
-    #)
-
-    # scale size
-    #cat["Maj"] = cat["Maj"] * config.getfloat("continuum", "sizefactor")
-    #cat["Maj_halflight"] = cat["Maj_halflight"] * config.getfloat(
-    #    "continuum", "sizefactor"
-    #)
-    #cat["Min"] = cat["Min"] * config.getfloat("continuum", "sizefactor")
-    #cat["Min_halflight"] = cat["Min_halflight"] * config.getfloat(
-    #    "continuum", "sizefactor"
-    #)
-
+  
 
     # fov cut, put cos(dec) factor into ra offset
     cosdec = np.cos(dec_field_gs * 2 * np.pi / 360)
@@ -750,25 +731,7 @@ def runSkyModel(config):
 
     nobj = len(cat)
 
-    #cat = cat[
-    #    "id",
-    #    "RA",
-    #    "DEC",
-    #    "Total_flux",
-    #    "z",
-    #    "spectral_index",
-    #    "Maj",
-    #    "Min",
-    #    "PA",
-    #    "RadioClass",
-    #    "corefrac",
-    #    "ranid",
-    #    "Atlas_source",
-    #    "New_flux",
-    #    "Unresolved",
-    #]
-    
-
+  
     
     multiprocessing.get_context("fork")
     # set up mutex lock
