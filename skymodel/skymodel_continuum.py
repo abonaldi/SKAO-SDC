@@ -63,11 +63,11 @@ def add_source_continuum(
     base_freq,
     freqs,
     lock,
+    polarization,
   
 
 ):
-    if i%100==0:
-        print ('source',i)
+    
 
    # return
   #  mainlog = logging.getLogger("main%d" % i)
@@ -76,7 +76,7 @@ def add_source_continuum(
   #  logging.root.setLevel(logging.DEBUG)
   #  mainlog.info("result%s" % i)
 
-
+    
     logging.info(
         "..........Adding source {0} of {1} to skymodel..........".format(i + 1, nobj)
     )
@@ -198,7 +198,7 @@ def add_source_continuum(
 
     with lock:
         # write the info for this object to files
-        fitsf = FITS(all_gals_fname, "rw")
+        fitsf = FITS(all_gals_fname+".fits", "rw")
         fitsf_f = FITS(all_gals_fname + "_maxflux.fits", "rw")
         fitsf_z = FITS(all_gals_fname + "_z.fits", "rw")
         #testpola
@@ -237,19 +237,24 @@ def add_source_continuum(
         fitsf_z.close()
 
         #testpola
+        
         if (polarization == True):
-            
+        
             fitsf_p = FITS(all_gals_fname + "_pola.fits", "rw")
             fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
             fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
-
+            print('pola on catalogue',cat_gal['polafrac'],cat_gal['EVPA'])
+        
             img3_pola= img3*cat_gal['polafrac']
+            print('pola on image',np.sum(img3),np.sum(img3_pola))
             img3_q=img3_pola*np.cos(cat_gal['EVPA']/ 180. * np.pi)
             img3_u=img3_pola*np.sin(cat_gal['EVPA']/ 180. * np.pi)
-
+            print('pola on image',np.sum(img3_q),np.sum(img3_u))
+            
             region = fitsf_p[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-                        
+            print(region.shape,img3_pola.shape,np.sum(region))
             img3_pola += region
+            print(region.shape,img3_pola.shape,np.sum(img3_pola))
             fitsf_p[0].write(img3_pola, blc0, blc1, blc2, trc0, trc1, trc2)
 
 
@@ -385,27 +390,29 @@ def runSkyModel(config):
 
     # calling the appropriate wcs for continuum.
     # based on header_4D plus extra keywords
-    # TODO: Carta does not like something about this header. Probably something not standard.
+    # TODO: Carta does not like something about this header.
+    # Probably something not standard.
     # get wcs for fits header
-    w_spectral = setup_wcs(config, ndim=3, cosmology=cosmo)
+
+    #w_spectral = setup_wcs(config, ndim=3, cosmology=cosmo)
     w_twod = setup_wcs(config, ndim=2, cosmology=cosmo)
     w_fourd = setup_wcs(config, ndim=4)
 
 
-    header_spectral = w_spectral.to_header()
-    header_twod = w_twod.to_header()
+    #header_spectral = w_spectral.to_header()
+    #header_twod = w_twod.to_header()
     header_fourd = w_fourd.to_header()
     header_fourd["BUNIT"] = "JY/PIXEL"
 
-    header_spectral["BUNIT"] = "JY/BEAM"
+    #header_spectral["BUNIT"] = "JY/BEAM"
 
     bmaj = psf_maj / galsim.degrees
     bmin = psf_min / galsim.degrees
     bpa = psf_pa / galsim.radians
 
-    header_spectral["BMAJ"] = bmaj
-    header_spectral["BMIN"] = bmin
-    header_spectral["BPA"] = bpa
+    #header_spectral["BMAJ"] = bmaj
+    #header_spectral["BMIN"] = bmin
+    #header_spectral["BPA"] = bpa
 
     header_fourd["BMAJ"] = bmaj
     header_fourd["BMIN"] = bmin
@@ -413,15 +420,15 @@ def runSkyModel(config):
 
     # initialse empty cubes
     all_gals_fname = (
-        data_path_large_files + config.get("field", "fits_prefix") + ".fits"
+        data_path_large_files + config.get("field", "fits_prefix") 
     )
 
-    if os.path.exists(all_gals_fname):
+    if os.path.exists(all_gals_fname+".fits"):
         print ('**** message from pipeline: '+all_gals_fname+' already exists') 
         print ('**** message from pipeline: not running skymodel_continuum this time')
         return
 
-    os.system("rm {0}".format(all_gals_fname))
+    os.system("rm {0}".format(all_gals_fname+ ".fits"))
     os.system("rm {0}".format(all_gals_fname + "_z.fits"))
     os.system("rm {0}".format(all_gals_fname + "_maxflux.fits"))
     os.system("rm {0}".format(all_gals_fname + "_pola.fits"))
@@ -490,8 +497,8 @@ def runSkyModel(config):
         polarization = True
 
 
-       # initialise files 
-    fitsf = FITS(all_gals_fname, "rw")
+    # initialise files 
+    fitsf = FITS(all_gals_fname+".fits", "rw")
     fitsf_f = FITS(all_gals_fname + "_maxflux.fits", "rw")
     fitsf_z = FITS(all_gals_fname + "_z.fits", "rw")
 
@@ -510,7 +517,13 @@ def runSkyModel(config):
         fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
 
         fitsf_p.write(img2, header=header_dict)
+        #modify CRVAL4 for U
+        header_dict['CRVAL4']=2
+        
         fitsf_q.write(img2, header=header_dict)
+
+        #modify CRVAL4 for U
+        header_dict['CRVAL4']=3
         fitsf_u.write(img2, header=header_dict)
     
 
@@ -578,7 +591,7 @@ def runSkyModel(config):
          # here generate polarization angle EVPA=2*chi.
          # convention it is 0 at North and anticlockwise
          np.random.seed(mother_seed + 1093548)
-         evpa = np.random.uniform(low=0, high=180.0, size=len(cat)
+         evpa = np.random.uniform(low=0, high=360.0, size=len(cat)
          )  
          cat["EVPA"] = evpa
          
@@ -682,45 +695,45 @@ def runSkyModel(config):
     ranid[cat["Rs"] > 0.5] = ranid[cat["Rs"] > 0.5] + 10
     cat["ranid"] = ranid
 
-    if config.get("continuum", "sizescale") == "constant":
-        cat["Maj"] = np.ones_like(cat["Maj"]) * config.getfloat(
-            "continuum", "sizescale_constant_value"
-        )
-        scale_radius_to_hlr = 1.67834699
-        cat["Maj_halflight"] = cat["Maj"] * scale_radius_to_hlr
-        cat["Maj_halflight"].unit = "arcsec"
-        cat["Min"] = cat["Maj"] * cat["q"]
-        cat["Min"].unit = "arcsec"
-        cat["Min_halflight"] = cat["Maj_halflight"] * cat["q"]
-        cat["Min_halflight"].unit = "arcsec"
-        # number of sources, on grid if requested
+    #if config.get("continuum", "sizescale") == "constant":
+    #    cat["Maj"] = np.ones_like(cat["Maj"]) * config.getfloat(
+    #        "continuum", "sizescale_constant_value"
+    #    )
+    #    scale_radius_to_hlr = 1.67834699
+    #    cat["Maj_halflight"] = cat["Maj"] * scale_radius_to_hlr
+    #    cat["Maj_halflight"].unit = "arcsec"
+    #    cat["Min"] = cat["Maj"] * cat["q"]
+    #    cat["Min"].unit = "arcsec"
+    #    cat["Min_halflight"] = cat["Maj_halflight"] * cat["q"]
+    #    cat["Min_halflight"].unit = "arcsec"
+    #    # number of sources, on grid if requested
 
 
 
     # flux range
-    if config.get("continuum", "fluxscale") == "constant":
-        cat["Total_flux"] = np.ones_like(cat["Total_flux"]) * config.getfloat(
-            "continuum", "fluxscale_constant_value"
-        )
-        cat["Peak_flux"] = cat["Total_flux"] / (2.0 * cat["Maj"] * arcsectorad)
+    #if config.get("continuum", "fluxscale") == "constant":
+    #    cat["Total_flux"] = np.ones_like(cat["Total_flux"]) * config.getfloat(
+    #        "continuum", "fluxscale_constant_value"
+    #    )
+    #    cat["Peak_flux"] = cat["Total_flux"] / (2.0 * cat["Maj"] * arcsectorad)
 
     # scale flux
-    cat["Total_flux"] = cat["Total_flux"] * config.getfloat(
-        "continuum", "flux_factor"
-    )
-    cat["Peak_flux"] = cat["Peak_flux"] * config.getfloat(
-        "continuum", "flux_factor"
-    )
+    #cat["Total_flux"] = cat["Total_flux"] * config.getfloat(
+    #    "continuum", "flux_factor"
+    #)
+    #cat["Peak_flux"] = cat["Peak_flux"] * config.getfloat(
+    #    "continuum", "flux_factor"
+    #)
 
     # scale size
-    cat["Maj"] = cat["Maj"] * config.getfloat("continuum", "sizefactor")
-    cat["Maj_halflight"] = cat["Maj_halflight"] * config.getfloat(
-        "continuum", "sizefactor"
-    )
-    cat["Min"] = cat["Min"] * config.getfloat("continuum", "sizefactor")
-    cat["Min_halflight"] = cat["Min_halflight"] * config.getfloat(
-        "continuum", "sizefactor"
-    )
+    #cat["Maj"] = cat["Maj"] * config.getfloat("continuum", "sizefactor")
+    #cat["Maj_halflight"] = cat["Maj_halflight"] * config.getfloat(
+    #    "continuum", "sizefactor"
+    #)
+    #cat["Min"] = cat["Min"] * config.getfloat("continuum", "sizefactor")
+    #cat["Min_halflight"] = cat["Min_halflight"] * config.getfloat(
+    #    "continuum", "sizefactor"
+    #)
 
 
     # fov cut, put cos(dec) factor into ra offset
@@ -737,24 +750,24 @@ def runSkyModel(config):
 
     nobj = len(cat)
 
-    cat = cat[
-        "id",
-        "RA",
-        "DEC",
-        "Total_flux",
-        "z",
-        "spectral_index",
-        "Maj",
-        "Min",
-        "PA",
-        "RadioClass",
-        "corefrac",
-        "ranid",
-        "Atlas_source",
-        "New_flux",
-        "Unresolved",
-    ]
-
+    #cat = cat[
+    #    "id",
+    #    "RA",
+    #    "DEC",
+    #    "Total_flux",
+    #    "z",
+    #    "spectral_index",
+    #    "Maj",
+    #    "Min",
+    #    "PA",
+    #    "RadioClass",
+    #    "corefrac",
+    #    "ranid",
+    #    "Atlas_source",
+    #    "New_flux",
+    #    "Unresolved",
+    #]
+    
 
     
     multiprocessing.get_context("fork")
@@ -788,7 +801,8 @@ def runSkyModel(config):
                     base_freq,
                     freqs,
                     lock,
-        
+                    polarization,
+                    
         
                 ), callback=log_result,
             )
@@ -816,7 +830,7 @@ def runSkyModel(config):
     cat.write(truthcat_name, format="fits", overwrite=True)
 
     # quick check
-    print ('summed cube:', np.sum(astfits.getdata(all_gals_fname)))
+    print ('summed cube:', np.sum(astfits.getdata(all_gals_fname+".fits")))
     tend = time.time()
     logging.info("...done in {0} seconds.".format(tend - tstart))
     print("skymodel_continuum finished in {0} seconds.".format(tend - tstart))

@@ -66,55 +66,30 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
 
     w = wcs.WCS(naxis=ndim)
 
+    
+    
     if ndim == 4:
-        if nu_axis:
-            """
-            w.wcs.naxis = [float(image_size),
-                           float(image_size),
-                           1,
-                           n_chan*n_ifs]
-            """
-            w.wcs.crpix = [
-                np.ceil((image_size) / 2.0),  # crpix always integer
-                np.ceil((image_size) / 2.0),
-                1,
-                1,
-            ]
-            w.wcs.cdelt = [
-                -pixel_scale / galsim.degrees,
-                pixel_scale / galsim.degrees,
-                bw,
-                1,
-            ]
-            w.wcs.crval = [
-                ra_field_gs / galsim.degrees,
-                dec_field_gs / galsim.degrees,
-                base_freq + bw / 2,
-                1,
-            ]
-            w.wcs.ctype = ["RA---SIN", "DEC--SIN", "FREQ", "STOKES"]
-            w.wcs.cunit = ["deg", "deg", "Hz", ""]
+    # data cube with frequnecy and stokes dimensions    
+        w.wcs.crpix = [
+            np.ceil((image_size) / 2.0),  # crpix always integer
+            np.ceil((image_size) / 2.0),
+            1,
+            1,
+        ]
 
-        else:
-            # this is the one used by continuum
+        w.wcs.cdelt = [
+            -pixel_scale / galsim.degrees,
+            pixel_scale / galsim.degrees,
+            dnu*1.e6,
+            1,
+        ]
 
-            w.wcs.crpix = [
-                np.ceil((image_size) / 2.0),  # crpix always integer
-                np.ceil((image_size) / 2.0),
-                1,
-                1,
-            ]
+        w.wcs.crval = [ra_field_gs, dec_field_gs, base_freq*1.e6, 1]
+        w.wcs.ctype = ["RA---SIN", "DEC--SIN", "FREQ", "STOKES"]
+        w.wcs.cunit = ["deg", "deg", "Hz", ""]
 
-            w.wcs.cdelt = [
-                -pixel_scale / galsim.degrees,
-                pixel_scale / galsim.degrees,
-                dnu,
-                1,
-            ]
-            w.wcs.crval = [ra_field_gs, dec_field_gs, base_freq, 1]
-            w.wcs.ctype = ["RA---SIN", "DEC--SIN", "FREQ", "STOKES"]
-            w.wcs.cunit = ["deg", "deg", "Hz", ""]
-
+        #Initialized for total intensity. IQUV = 1234 should be used for CRVAL4.
+        
     elif ndim == 3:
 
         # begin with a freq-based spectral axis
