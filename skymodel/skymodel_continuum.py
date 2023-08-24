@@ -80,13 +80,15 @@ def add_source_continuum(
     logging.info(
         "..........Adding source {0} of {1} to skymodel..........".format(i + 1, nobj)
     )
- 
+
+
     x, y = w_twod.wcs_world2pix(
         cat_gal["RA"],
         cat_gal["DEC"],
         1,
     )
 
+    
     x = float(x)
     y = float(y)
 
@@ -352,6 +354,12 @@ def runSkyModel(config):
     global cat
     
     # set spectral properties for continuum
+
+    logfreq = False
+    if config.getboolean("observation", "dologfreq") == True:
+        logfreq = True
+
+
     base_freq = config.getfloat("observation", "lowest_frequency")  # *1.e6 #Hz
     base_freqname = config.get("observation", "lowest_frequency")
     top_freq = config.getfloat("observation", "highest_frequency")  # *1.e6 #Hz
@@ -368,13 +376,38 @@ def runSkyModel(config):
     # a cube is generated with continuum channels
 
     dnu = config.getfloat("observation", "channel_width")
-    nfreqs = int((top_freq - base_freq) / dnu) + 1
-    freqs = np.zeros(nfreqs).astype(np.float32)
-    freq = base_freq
-    for ff in range(nfreqs):
-        freqs[ff] = freq
-        freq = freq + dnu
 
+    # this is the definittion of linearly frequencies
+    if (logfreq == False):
+        nfreqs = int((top_freq - base_freq) / dnu) + 1
+        freqs = np.zeros(nfreqs).astype(np.float32)
+        freq = base_freq
+        for ff in range(nfreqs):
+            freqs[ff] = freq
+            freq = freq + dnu
+
+
+    # this is the definition of logarithically spaced frequencies
+    if (logfreq == True):
+        #nfreqs = int((top_freq - base_freq) / dnu) + 1
+        #freqs = np.zeros(nfreqs).astype(np.float32)
+        #freq = base_freq
+        nfreqs=1
+        freq=base_freq
+
+        while freq <= top_freq:
+            freq=freq*dnu
+            nfreqs=nfreqs+1
+
+        freqs = np.zeros(nfreqs).astype(np.float32)
+        freq = base_freq
+        for ff in range(nfreqs):
+            freqs[ff] = freq
+            freq = freq * dnu
+    
+    
+    #exit()
+        
     n_chan = nfreqs
     arr_dims = np.array([n_chan, image_size, image_size]).astype(np.int)
 
@@ -395,9 +428,11 @@ def runSkyModel(config):
     # get wcs for fits header
 
     #w_spectral = setup_wcs(config, ndim=3, cosmology=cosmo)
+    
     w_twod = setup_wcs(config, ndim=2, cosmology=cosmo)
+    
     w_fourd = setup_wcs(config, ndim=4)
-
+    
 
     #header_spectral = w_spectral.to_header()
     #header_twod = w_twod.to_header()
@@ -482,13 +517,14 @@ def runSkyModel(config):
         np.float32
     )  # empy array for 1D maps
 
- 
+
+
     cr_x, cr_y = w_twod.wcs_world2pix(
         ra_field_gs,
         dec_field_gs,
         1,
     )
-   
+
     logging.info("Check world2pix crpix1, crpix2: %f %f", cr_x, cr_y)
     
     
@@ -503,6 +539,14 @@ def runSkyModel(config):
     fitsf_z = FITS(all_gals_fname + "_z.fits", "rw")
 
 
+
+    if (logfreq == True):
+        #modify the headers to reflect logaritmically-spaced frequency
+        header_dict['CTYPE3'] = 'FREQ-LOG'
+        header_dict['CDELT3'] = np.log(dnu)
+
+
+        
     fitsf.write(img2, header=header_dict)
     fitsf_f.write(img2_1D, header=header_dict)
     fitsf_z.write(img2_1D, header=header_dict)
@@ -510,6 +554,13 @@ def runSkyModel(config):
     fitsf.close()
     fitsf_f.close()
     fitsf_z.close()
+
+
+
+
+
+
+
     
     if (polarization == True):
         fitsf_p = FITS(all_gals_fname + "_pola.fits", "rw")
@@ -591,7 +642,7 @@ def runSkyModel(config):
          # here generate polarization angle EVPA=2*chi.
          # convention it is 0 at North and anticlockwise
          np.random.seed(mother_seed + 1093548)
-         evpa = np.random.uniform(low=0., high=360.0, size=len(cat)
+         evpa = np.random.uniform(low=0., high=359.99, size=len(cat)
          )  
          cat["EVPA"] = evpa
          
@@ -659,7 +710,7 @@ def runSkyModel(config):
         
     # PA not defined for AGN, here generate random
     np.random.seed(mother_seed + 1)
-    pa_2 = np.random.uniform(low=0, high=359.0, size=len(cat))
+    pa_2 = np.random.uniform(low=0., high=359.99, size=len(cat))
     pa[pa == -100] = pa_2[pa == -100]
     pa_2 = 0
     

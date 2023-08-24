@@ -26,13 +26,13 @@ if doHI:
     from skymodel.skymodel_HI import runSkyModel
     runSkyModel(config)
 if docontinuum:
-    config = configparser.ConfigParser()
-    config.read('inis/SDC4/run_magnetism_pola_v3.ini')
     from skymodel.skymodel_continuum import runSkyModel
+    config = configparser.ConfigParser()
+    config.read('inis/SDC4/SDC4_run1_z0.ini')
     runSkyModel(config)
-#    config = configparser.ConfigParser()
-#    config.read('inis/skymodel/continuum/SDC2_continuum_'+cver+'_f2.ini')
-#    runSkyModel(config)
+    config.read('inis/SDC4/SDC4_run1_z1.ini')
+    runSkyModel(config)
+
 if doobserve:
     config = configparser.ConfigParser()
     config.read('inis/observe/SDC2_observe_'+cver+'.ini')

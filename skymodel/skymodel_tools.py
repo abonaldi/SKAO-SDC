@@ -39,11 +39,11 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
     dnu = config.getfloat("observation", "channel_width")
 
     # rest frequency defined only for spectral mode. Eliminate the need for this keyword in continuum
-    rest_freq=1.420405752e+9 
+
     try:
         rest_freq = config.getfloat("observation", "rest_freq")
     except:
-        print("default rest frequency")
+        rest_freq=1.420405752e+9 
     
     base_freq = config.getfloat("observation", "lowest_frequency")
     top_freq = config.getfloat("observation", "highest_frequency")
@@ -67,8 +67,6 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
     msname = config.get("pipeline", "project_name") + ".ms"
     msname = config.get("pipeline", "data_path") + msname
     imagename = msname + ".image"
-
-  
 
     w = wcs.WCS(naxis=ndim)
 

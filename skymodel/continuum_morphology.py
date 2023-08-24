@@ -216,13 +216,12 @@ def make_img(
         logging.info("after scaling %f", atlas_psf * zoom_factor)
         logging.info("atlas psf in pixels %f", atlas_psf * zoom_factor / ska_dx)
 
-        psf_smooth = np.sqrt(
-            np.square(psf_maj / ska_dx) - np.square(atlas_psf * zoom_factor / ska_dx)
-        )  # additional smoothing PSF in units of the map pixel
+        psf_smooth = np.square(psf_maj / ska_dx) - np.square(atlas_psf * zoom_factor / ska_dx)  # additional smoothing PSF in units of the map pixel
 
       
         if (psf_smooth > 0.0):
 
+            pdf_smooth=np.sqrt(psf_smooth)
             atlas_smoo = psf_smooth / sigma2FWHM
           
             atlas_kernel = Gaussian2DKernel(x_stddev=atlas_smoo)
