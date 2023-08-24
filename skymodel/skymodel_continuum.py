@@ -210,13 +210,18 @@ def add_source_continuum(
         # this is judged by looking at the dummy map _maxflux and comparing if with the postage stamp. 
         # the z map is updated only where the postage stamp is brighter than what recorder in _maxflux
 
+        # the flux is I for Polarization == False and P for POlarization == True
+        # this is guaranteed by polafract which is initialised as 1. for polarization == false
+        
         # read the recorded values for flux and redshift at the postage location
         flux_old = fitsf_f[0][0:1, blc1 : trc1 + 1, blc2 : trc2 + 1]
         z_old = fitsf_z[0][0:1, blc1 : trc1 + 1, blc2 : trc2 + 1]
 
         # initialise the new arrays
         flux_new = z_old * 0.0
-        flux_new[0] = img3[0]  # at the lowest frequency
+        flux_new[0] = img3[0]*cat_gal['polafrac']  # at the lowest frequency
+        # for total intensity only, polafrac=1 and so the flux is total intensity flux
+        
         zvalue = cat_gal["z"]
         img_z = z_old
         img_f = flux_old
@@ -238,11 +243,9 @@ def add_source_continuum(
         fitsf_f.close()
         fitsf_z.close()
 
-        #testpola
-        
         if (polarization == True):
         
-            fitsf_p = FITS(all_gals_fname + "_pola.fits", "rw")
+            fitsf_p = FITS(all_gals_fname + "_P.fits", "rw")
             fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
             fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
             
@@ -466,7 +469,7 @@ def runSkyModel(config):
     os.system("rm {0}".format(all_gals_fname+ ".fits"))
     os.system("rm {0}".format(all_gals_fname + "_z.fits"))
     os.system("rm {0}".format(all_gals_fname + "_maxflux.fits"))
-    os.system("rm {0}".format(all_gals_fname + "_pola.fits"))
+    os.system("rm {0}".format(all_gals_fname + "_P.fits"))
     os.system("rm {0}".format(all_gals_fname + "_Q.fits"))#a
     os.system("rm {0}".format(all_gals_fname + "_U.fits"))#a
 
@@ -563,7 +566,7 @@ def runSkyModel(config):
 
     
     if (polarization == True):
-        fitsf_p = FITS(all_gals_fname + "_pola.fits", "rw")
+        fitsf_p = FITS(all_gals_fname + "_P.fits", "rw")
         fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
         fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
 
@@ -636,6 +639,10 @@ def runSkyModel(config):
         cat["Total_flux"] / cat["flux2"]
     ) / np.log10(base_freq / top_freq)
 
+
+    #initialise polarization fraction as 1. so that P=I of polarization ==False
+    cat["polafrac"] = cat["Total_flux"]*0.+1.
+    
     if (polarization == True):
          cat["polafrac"] = cat_read["P" + base_freqname] * 1.0e-3 /cat["Total_flux"]
          #polarization fraction
