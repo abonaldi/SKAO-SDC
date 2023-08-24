@@ -22,6 +22,7 @@ from fitsio import FITS, FITSHDR
 from numpy.core.defchararray import add as stradd
 from numpy.core.defchararray import multiply as strmultiply
 from multiprocessing import Manager
+from multiprocessing import Process, current_process #AA
 
 import skymodel.skymodel_tools as tools
 from skymodel.continuum_morphology import make_img
@@ -63,8 +64,7 @@ def add_source_continuum(
     base_freq,
     freqs,
     lock,
-    polarization,
-  
+    polarization
 
 ):
     
@@ -80,8 +80,10 @@ def add_source_continuum(
     logging.info(
         "..........Adding source {0} of {1} to skymodel..........".format(i + 1, nobj)
     )
-
-
+    # how to ask process name:
+    #process = multiprocessing.current_process()
+    #pid=process.pid
+    
     x, y = w_twod.wcs_world2pix(
         cat_gal["RA"],
         cat_gal["DEC"],
@@ -798,15 +800,10 @@ def runSkyModel(config):
         # create the shared lock
         lock = manager.Lock()
         pool = multiprocessing.Pool(n_cores)
+        
         for i, cat_gal in enumerate(cat):
   
-      
-          #  mainlog = logging.getLogger("main%d" % i)
-          #  h = logging.FileHandler("log%d.log" % i)
-          #  mainlog.addHandler(h)
-          #  logging.root.setLevel(logging.DEBUG)
-          #  mainlog.info("test%s" % i)
-
+          
             pool.apply_async(
                 add_source_continuum,
                 args=(
@@ -822,8 +819,7 @@ def runSkyModel(config):
                     base_freq,
                     freqs,
                     lock,
-                    polarization,
-                    
+                    polarization
         
                 ), callback=log_result,
             )
