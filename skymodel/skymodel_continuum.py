@@ -18,6 +18,7 @@ from astropy.coordinates import SkyCoord
 from astropy.cosmology import LambdaCDM
 from astropy.io import fits as astfits
 from astropy.table import Table
+import fitsio
 from fitsio import FITS, FITSHDR
 from numpy.core.defchararray import add as stradd
 from numpy.core.defchararray import multiply as strmultiply
@@ -34,22 +35,100 @@ arcsectorad = (1.0 * uns.arcsec).to(uns.rad).value
 degtoarcsec = (1.0 * uns.deg).to(uns.arcsec).value
 
 
-#def initialise_file(filename, ):
+# Add outputs procuced by seleval parallel processes to a single final output
+# .fits
+# _P.fits
+# _Q.fits
+# _U.fits
+
+def coadd(filename,n_cores,tag):
+
+    print('coadding ',filename+tag )
+
+    os.system("rm {0}".format(filename+tag+".fits"))
+    #initialise with the first file
+    data,h = fitsio.read(filename+"_1"+tag+".fits ",header=True)
+
+    for i in range(1,n_cores):
+        process_tag="_"+str(i+1)
+        #print(process_tag)
+        #read map 2
+        data2,h2 = fitsio.read(filename+process_tag+tag+".fits ",header=True)
+
+        data=data+data2
+        #print(np.min(data),np.max(data))
+
+    fitsf = FITS(filename+tag+".fits", "rw")
+    fitsf.write(data, header=h)
+
+    fitsf.close()
     
-#def make_header(header_type,):
+    
+    # delete old files
+    for i in range(0,n_cores):
+        process_tag="_"+str(i+1)
+        os.system("rm {0}".format(filename+process_tag+tag+".fits"))
 
-#def retrieve_flux():
+
+# Combine outputs procuced by seleval parallel processes to a single final output
+# _maxflux.fits
+# _z.fits 
+def combine(filename,n_cores):
+
+    print('combining ',filename+"_maxflux",filename+"_z" )
+
+    os.system("rm {0}".format(filename+"_maxflux.fits"))
+    os.system("rm {0}".format(filename+"_z.fits"))
+
+    #initialise with the first file
+    data_f,h_f = fitsio.read(filename+"_1_maxflux.fits ",header=True)
+    data_z,h_z = fitsio.read(filename+"_1_z.fits ",header=True)
+
+    for i in range(1,n_cores):
+        process_tag="_"+str(i+1)
+        #print(process_tag)
+        #read map 2
+        data_f2,h = fitsio.read(filename+process_tag+"_maxflux.fits ",header=True)
+        data_z2,h = fitsio.read(filename+process_tag+"_z.fits ",header=True)
+
+        
+        data_z[data_f2 > data_f] = data_z2[data_f2 > data_f]
+        data_f[data_f2 > data_f] = data_f2[data_f2 > data_f]
+        
+        
+    
+
+    fitsf_f = FITS(filename+"_maxflux.fits", "rw")
+    fitsf_f.write(data_f, header=h_f)
 
 
+    
+    fitsf_z = FITS(filename+"_z.fits", "rw")
+    fitsf_z.write(data_z, header=h_z)
+
+    fitsf_f.close()
+    fitsf_z.close()
+    
+    # delete old files
+    for i in range(0,n_cores):
+        process_tag="_"+str(i+1)
+        os.system("rm {0}".format(filename+process_tag+"_maxflux.fits"))
+        os.system("rm {0}".format(filename+process_tag+"_z.fits"))
+
+
+
+
+    
 
 def log_result(result):
     
     global cat
-    (i, atlas_source, flux, unresolved) = result
+    (i, atlas_source, flux, unresolved,skipped_sources) = result
     cat["id"][i] = i
     cat["Atlas_source"][i] = atlas_source
     cat["New_flux"][i] = flux
     cat["Unresolved"][i] = unresolved
+    skipped_sources=skipped_sources
 
 def add_source_continuum(
     i,
@@ -63,23 +142,18 @@ def add_source_continuum(
     all_gals_fname,
     base_freq,
     freqs,
-    lock,
-    polarization
-
+    polarization,
+    skipped_sources    
 ):
     
-
-   # return
-  #  mainlog = logging.getLogger("main%d" % i)
-  #  h = logging.FileHandler("log%d.log" % i)
-  #  mainlog.addHandler(h)
-  #  logging.root.setLevel(logging.DEBUG)
-  #  mainlog.info("result%s" % i)
-
+    
     
     logging.info(
         "..........Adding source {0} of {1} to skymodel..........".format(i + 1, nobj)
     )
+
+    total_sources_added=0 #initialise this variable, if everything goes well make_img returns 1
+    
     # how to ask process name:
     #process = multiprocessing.current_process()
     #pid=process.pid
@@ -119,6 +193,7 @@ def add_source_continuum(
         cat_gal["ranid"],
     )
 
+    
     sub_img_shape = sub_img.shape
     sub_img_size = sub_img.shape[1]
     logging.info("postage stamp size %f", sub_img_size)
@@ -199,13 +274,18 @@ def add_source_continuum(
         trc2,
     )
 
+    # to prevent crashes in case the object is cropped so much une of the dimensions is zero
+    if ((trc1+1 <=blc1) or (trc2+1<=blc2)):
+        logging.info("Skipping this source as outside of field")
+        skipped_sources=skipped_sources+1
+        return (i, atlas_source, flux, unresolved,skipped_sources)
 
-    with lock:
-        # write the info for this object to files
-        fitsf = FITS(all_gals_fname+".fits", "rw")
-        fitsf_f = FITS(all_gals_fname + "_maxflux.fits", "rw")
-        fitsf_z = FITS(all_gals_fname + "_z.fits", "rw")
-        #testpola
+    
+    # write the info for this object to files
+    fitsf = FITS(all_gals_fname+".fits", "rw")
+    fitsf_f = FITS(all_gals_fname + "_maxflux.fits", "rw")
+    fitsf_z = FITS(all_gals_fname + "_z.fits", "rw")
+    #testpola
 
               
         # the redshift map contains the redshift of the brightest source on the LoS. 
@@ -216,68 +296,67 @@ def add_source_continuum(
         # this is guaranteed by polafract which is initialised as 1. for polarization == false
         
         # read the recorded values for flux and redshift at the postage location
-        flux_old = fitsf_f[0][0:1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-        z_old = fitsf_z[0][0:1, blc1 : trc1 + 1, blc2 : trc2 + 1]
+    img3_pola=img3*cat_gal['polafrac']
+    
+    flux_old = fitsf_f[0][0:1, blc1 : trc1 + 1, blc2 : trc2 + 1]
+    z_old = fitsf_z[0][0:1, blc1 : trc1 + 1, blc2 : trc2 + 1]
 
         # initialise the new arrays
-        flux_new = z_old * 0.0
-        flux_new[0] = img3[0]*cat_gal['polafrac']  # at the lowest frequency
+    flux_new = z_old * 0.0
+    flux_new[0] = img3[0]*cat_gal['polafrac']  # at the lowest frequency
         # for total intensity only, polafrac=1 and so the flux is total intensity flux
         
-        zvalue = cat_gal["z"]
-        img_z = z_old
-        img_f = flux_old
+    zvalue = cat_gal["z"]
+    img_z = z_old
+    img_f = flux_old
 
         # update only where postage brighter than record
-        img_z[flux_new > flux_old] = zvalue
-        img_f[flux_new > flux_old] = flux_new[flux_new > flux_old]
+    img_z[flux_new > flux_old] = zvalue
+    img_f[flux_new > flux_old] = flux_new[flux_new > flux_old]
 
-        fitsf_f[0].write(img_f, 0, blc1, blc2, 0, trc1, trc2)
-        fitsf_z[0].write(img_z, 0, blc1, blc2, 0, trc1, trc2)
+    fitsf_f[0].write(img_f, 0, blc1, blc2, 0, trc1, trc2)
+    fitsf_z[0].write(img_z, 0, blc1, blc2, 0, trc1, trc2)
 
         # adding the source to the total map
         # if running in parallel, this step can go out of synch
-        region = fitsf[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-        img3 += region
-        fitsf[0].write(img3, blc0, blc1, blc2, trc0, trc1, trc2)
+    region = fitsf[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
+    img3 += region
+    fitsf[0].write(img3, blc0, blc1, blc2, trc0, trc1, trc2)
 
-        fitsf.close()
-        fitsf_f.close()
-        fitsf_z.close()
+    fitsf.close()
+    fitsf_f.close()
+    fitsf_z.close()
 
-        if (polarization == True):
+    if (polarization == True):
         
-            fitsf_p = FITS(all_gals_fname + "_P.fits", "rw")
-            fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
-            fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
+        fitsf_p = FITS(all_gals_fname + "_P.fits", "rw")
+        fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
+        fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
+                    
+        img3_q=img3_pola*np.cos(cat_gal['EVPA']/ 180. * np.pi)
+        img3_u=img3_pola*np.sin(cat_gal['EVPA']/ 180. * np.pi)
             
+            
+        region = fitsf_p[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
+            
+        img3_pola += region
         
-            img3_pola= img3*cat_gal['polafrac']
-            img3_q=img3_pola*np.cos(cat_gal['EVPA']/ 180. * np.pi)
-            img3_u=img3_pola*np.sin(cat_gal['EVPA']/ 180. * np.pi)
-            
-            
-            region = fitsf_p[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-            
-            img3_pola += region
-            
-            fitsf_p[0].write(img3_pola, blc0, blc1, blc2, trc0, trc1, trc2)
+        fitsf_p[0].write(img3_pola, blc0, blc1, blc2, trc0, trc1, trc2)
 
-
-            region = fitsf_q[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
+        region = fitsf_q[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
                             
-            img3_q += region
-            fitsf_q[0].write(img3_q, blc0, blc1, blc2, trc0, trc1, trc2)
+        img3_q += region
+        fitsf_q[0].write(img3_q, blc0, blc1, blc2, trc0, trc1, trc2)
 
 
 
-            region = fitsf_u[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-            img3_u += region
-            fitsf_u[0].write(img3_u, blc0, blc1, blc2, trc0, trc1, trc2)
+        region = fitsf_u[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
+        img3_u += region
+        fitsf_u[0].write(img3_u, blc0, blc1, blc2, trc0, trc1, trc2)
 
-            fitsf_p.close()
-            fitsf_q.close()
-            fitsf_u.close()
+        fitsf_p.close()
+        fitsf_q.close()
+        fitsf_u.close()
 
                         
 
@@ -286,7 +365,8 @@ def add_source_continuum(
 
     return (i, atlas_source, flux, unresolved)
 
-def runSkyModel(config):
+### run the continuum sky model
+def runSkyModel(config,process,total_cores):
     """Simulate a sky model from a T-RECS catalogue.
 
     Parameters
@@ -295,9 +375,18 @@ def runSkyModel(config):
         ConfigParser configuration containing necessary sections.
 
     """
+
+    # set up parallel processing name tags 
+
+    process_tag=""
+    #process_add=0
+    if total_cores >1:
+        process_tag="_"+str(process)
+    #    process_add=int(process)
+        
     tstart = time.time()    
     # Set up logging
-    logfilename = "logs/%s.log" % config.get("field", "fits_prefix")
+    logfilename = "logs/%s.log" % config.get("field", "fits_prefix")+process_tag
     os.system("rm %s" % logfilename)
     log = logfilename
     logging.basicConfig(
@@ -306,12 +395,14 @@ def runSkyModel(config):
         format="%(asctime)s %(message)s",
         datefmt="%d/%m/%Y %H:%M:%S",
     )
+
+    
     logging.info("Beginning simulation")
 
 
+    # read keywords from the config file
     n_cores = int(config.getfloat("pipeline", "n_cores"))
     logging.info("Running with %d cores", n_cores)
-
     doplot = config.getboolean("pipeline", "doplot")
 
     # set up cosmology
@@ -322,6 +413,7 @@ def runSkyModel(config):
 
     mother_seed = int(config.get("pipeline", "mother_seed"))
 
+    logging.info("mother_seed %s",mother_seed)
     data_path_large_files = (
         config.get("pipeline", "data_path_large_files")
         + config.get("pipeline", "project_name")
@@ -334,7 +426,7 @@ def runSkyModel(config):
         + "/"
     )
 
-
+    # create output path if not existing
     if not os.path.exists(data_path):
         os.system('mkdir -p '+ data_path)
 
@@ -359,7 +451,6 @@ def runSkyModel(config):
     global cat
     
     # set spectral properties for continuum
-
     logfreq = False
     if config.getboolean("observation", "dologfreq") == True:
         logfreq = True
@@ -375,14 +466,9 @@ def runSkyModel(config):
     logging.info("Final base_freq, Hz: %f", base_freq)
     logging.info("Final top_freq, Hz: %f", top_freq)
 
-    # Continuum version:
-    # definition of bandwidth and channels for continuum is different.
-    # Explicit definition of low and up frequency via input file
-    # a cube is generated with continuum channels
-
     dnu = config.getfloat("observation", "channel_width")
 
-    # this is the definittion of linearly frequencies
+    # this is the definittion of linearly-spaced frequencies
     if (logfreq == False):
         nfreqs = int((top_freq - base_freq) / dnu) + 1
         freqs = np.zeros(nfreqs).astype(np.float32)
@@ -392,11 +478,8 @@ def runSkyModel(config):
             freq = freq + dnu
 
 
-    # this is the definition of logarithically spaced frequencies
+    # this is the definition of logarithmically-spaced frequencies
     if (logfreq == True):
-        #nfreqs = int((top_freq - base_freq) / dnu) + 1
-        #freqs = np.zeros(nfreqs).astype(np.float32)
-        #freq = base_freq
         nfreqs=1
         freq=base_freq
 
@@ -410,8 +493,6 @@ def runSkyModel(config):
             freqs[ff] = freq
             freq = freq * dnu
     
-    
-    #exit()
         
     n_chan = nfreqs
     arr_dims = np.array([n_chan, image_size, image_size]).astype(np.int)
@@ -428,31 +509,16 @@ def runSkyModel(config):
 
     # calling the appropriate wcs for continuum.
     # based on header_4D plus extra keywords
-    # TODO: Carta does not like something about this header.
-    # Probably something not standard.
-    # get wcs for fits header
-
-    #w_spectral = setup_wcs(config, ndim=3, cosmology=cosmo)
     
     w_twod = setup_wcs(config, ndim=2, cosmology=cosmo)
-    
     w_fourd = setup_wcs(config, ndim=4)
     
-
-    #header_spectral = w_spectral.to_header()
-    #header_twod = w_twod.to_header()
     header_fourd = w_fourd.to_header()
     header_fourd["BUNIT"] = "JY/PIXEL"
-
-    #header_spectral["BUNIT"] = "JY/BEAM"
 
     bmaj = psf_maj / galsim.degrees
     bmin = psf_min / galsim.degrees
     bpa = psf_pa / galsim.radians
-
-    #header_spectral["BMAJ"] = bmaj
-    #header_spectral["BMIN"] = bmin
-    #header_spectral["BPA"] = bpa
 
     header_fourd["BMAJ"] = bmaj
     header_fourd["BMIN"] = bmin
@@ -460,14 +526,16 @@ def runSkyModel(config):
 
     # initialse empty cubes
     all_gals_fname = (
-        data_path_large_files + config.get("field", "fits_prefix") 
+        data_path_large_files + config.get("field", "fits_prefix")+ process_tag
     )
 
+    # CHOICE1: never overwrite files
     #if os.path.exists(all_gals_fname+".fits"):
     #    print ('**** message from pipeline: '+all_gals_fname+'.fits already exists') 
     #    print ('**** message from pipeline: not running skymodel_continuum this time')
     #    return
 
+    # CHOICE2: overwrite files
     os.system("rm {0}".format(all_gals_fname+ ".fits"))
     os.system("rm {0}".format(all_gals_fname + "_z.fits"))
     os.system("rm {0}".format(all_gals_fname + "_maxflux.fits"))
@@ -510,11 +578,7 @@ def runSkyModel(config):
     blc1 = image_size - 1
     blc2 = n_chan - 1
 
-    # here we create 4 maps:
-    # 1) continuum cube with all sources for the chosen continuum channels
-    # 2) redshift map containing the redshift of the brightest source oon the LoS - needed for HI absorption
-    # 3) map of the brightest fluxes along the LoS - This is needed for obtaining 3 and could just be a trowaway dummy map. For the moment I am keeping for debugging purposes
-
+    # initialise two empy objects: one nfreq X npix X npix cube and one npix X npix map
     img2 = np.zeros((blc2 + 1, blc0 + 1, blc1 + 1)).astype(
         np.float32
     )  # empty array for the continuum cube
@@ -533,10 +597,11 @@ def runSkyModel(config):
     logging.info("Check world2pix crpix1, crpix2: %f %f", cr_x, cr_y)
     
     
-    polarization = False
-    if config.getboolean("skymodel", "dopolarization") == True:
-        polarization = True
-
+  
+    # here we create initialise 3 files:
+    # 1) continuum cube with all sources for the chosen continuum channels
+    # 2) redshift map containing the redshift of the brightest source on the LoS - needed for HI absorption
+    # 3) map of the brightest fluxes along the LoS - This is needed for obtaining 3 and could just be a trowaway dummy map. For the moment I am keeping for debugging purposes
 
     # initialise files 
     fitsf = FITS(all_gals_fname+".fits", "rw")
@@ -544,14 +609,13 @@ def runSkyModel(config):
     fitsf_z = FITS(all_gals_fname + "_z.fits", "rw")
 
 
-
+    #modify the headers to reflect logaritmically-spaced frequency
     if (logfreq == True):
-        #modify the headers to reflect logaritmically-spaced frequency
         header_dict['CTYPE3'] = 'FREQ-LOG'
         header_dict['CDELT3'] = np.log(dnu)
 
 
-        
+    # write those 3 empy files    
     fitsf.write(img2, header=header_dict)
     fitsf_f.write(img2_1D, header=header_dict)
     fitsf_z.write(img2_1D, header=header_dict)
@@ -561,12 +625,17 @@ def runSkyModel(config):
     fitsf_z.close()
 
 
-
-
-
-
-
+    # in the POLARIZATION case:
+    # we also have 3 more files;
+    # 4) polarised intensity
+    # 5) Q Stokes
+    # 6) U Stokes
+    # the _maxflux and _z maps as in 2) and 3) refer to polarised flux instead of total intensity flux. This product is used for rotation measure propagation. 
     
+    polarization = False
+    if config.getboolean("skymodel", "dopolarization") == True:
+        polarization = True
+
     if (polarization == True):
         fitsf_p = FITS(all_gals_fname + "_P.fits", "rw")
         fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
@@ -588,35 +657,25 @@ def runSkyModel(config):
         fitsf_u.close()
         
     
+    # READING T-RECS CATALOGUE AND IMPORTING RELEVANT QUANTITIES
+    # this flag indicates whether the catalogue is a continuum (False) or
+    # continuum X HI (True) catalogue
+    HI_cross = False  #initialised as continuum only, to be revised when inspecting the catalogue
 
-    HI_cross = False  # assume that the catalogue is not cross-matched with HI
-    
+    # Load the catalogue and import column names
     cat_file_name = config.get("field", "catalogue")
     logging.info("Loading catalogue from {0} ...".format(cat_file_name))
     cat = Table()
     cat_read = Table.read(cat_file_name)  # remove ascii
     keywords = cat_read.colnames
 
+    # use the HI mass keyword to identify an HIXcontinuum catalogue
     if "MHI" in keywords:
         HI_cross = True
-
-    source_prefix = "TRECS-"
-    source_name_ra = np.asarray(cat_read["longitude"], dtype=str)
-    source_name_dec = np.asarray(cat_read["latitude"], dtype=str)
-    source_prefix_arr = strmultiply(
-        source_prefix, np.ones_like(source_name_ra, dtype=int)
-    )
-    source_l_arr = strmultiply("l", np.ones_like(source_name_ra, dtype=int))
-    source_b_arr = strmultiply("b", np.ones_like(source_name_ra, dtype=int))
-    source_name_pos = stradd(
-        source_prefix_arr,
-        stradd(
-            source_l_arr,
-            stradd(source_name_ra, (stradd(source_b_arr, source_name_dec))),
-        ),
-    )
+    
     cat["id"] = np.zeros(len(cat_read))
-    cat["Source_id"] = source_name_pos
+    source_prefix = "TRECS-"
+    cat["Source_id"] =cat_read["ID_cont"]  # source unique identifier
     cat["RA"] = cat_read["longitude"]  # deg
     cat["ra_offset"] = cat["RA"] - ra_field_gs  # deg
     cat["ra_offset"].unit = "deg"
@@ -624,12 +683,8 @@ def runSkyModel(config):
     cat["dec_offset"] = cat_read["latitude"] - dec_field_gs  # deg
     cat["dec_offset"].unit = "deg"
     z = cat_read["redshift"]
-    if HI_cross == True:
-        z_1 = cat_read["redshift_1"]
-        z[z == -100] = z_1[z == -100]
-    cat["z"] = z
-
-    # each source is approximated as a power law within the cube. A spectral index is computed between the lowest and highest specified frequencies.
+  
+    # Each source frequency behaviour is approximated as a power law within the cube. A spectral index is computed between the lowest and highest specified frequencies.
     # This approximation is OK for channels within the same band.
     # For frequencies belonging do different bands, perform multiple runs of the code.
 
@@ -642,69 +697,32 @@ def runSkyModel(config):
     ) / np.log10(base_freq / top_freq)
 
 
-    #initialise polarization fraction as 1. so that P=I of polarization ==False
+    #Initialise polarization fraction as 1 so that P=I if polarization ==False
     cat["polafrac"] = cat["Total_flux"]*0.+1.
     
     if (polarization == True):
          cat["polafrac"] = cat_read["P" + base_freqname] * 1.0e-3 /cat["Total_flux"]
-         #polarization fraction
-         # here generate polarization angle EVPA=2*chi.
+         # generate polarization angle
          # convention it is 0 at North and anticlockwise
          np.random.seed(mother_seed + 1093548)
          evpa = np.random.uniform(low=0., high=359.99, size=len(cat)
          )  
          cat["EVPA"] = evpa
-         
-    
 
-    
-    # read the relevant quantities to implement flux cuts
-    if config.getboolean("continuum", "highfluxcut") == True:
-        highflux = config.getfloat("continuum", "highfluxcut_value")
-        flux_sel_freq = config.get("continuum", "fluxcut_frequency")
-        cat["flux_selection"] = cat_read["I" + flux_sel_freq] * 1.0e-3  # Jy
-
-    if config.getboolean("continuum", "lowfluxcut") == True:
-        lowflux = config.getfloat("continuum", "lowfluxcut_value")
-        flux_sel_freq = config.get("continuum", "fluxcut_frequency")
-        cat["flux_selection"] = cat_read["I" + flux_sel_freq] * 1.0e-3  # Jy
-
-    # read the relevant quantities to implement redshift range selection
-    if config.getboolean("continuum", "zrange") == True:
-        zmin = config.getfloat("continuum", "zmin")
-        zmax = config.getfloat("continuum", "zmax")
-
-    
-    
-    
-
-        
+    # source size and morphology description
     maj = cat_read["size"]  # arcsec
     cat["Maj"] = maj
     cat["Maj"].unit = "arcsec"
     q = cat_read["axis ratio"]
-    if HI_cross == True:
-        q1 = cat_read["axis ratio_1"]
-        q[q == -100] = q1[q == -100]
+    
     cat["Min"] = maj * q
     cat["Min"].unit = "arcsec"
-
-    # ANNA: check if those are still needed
-    #scale_radius_to_hlr = 1.67834699
-    #cat["Maj_halflight"] = cat_read["size"] * scale_radius_to_hlr
-    #cat["Maj_halflight"].unit = "arcsec"
-    #cat["Min_halflight"] = cat_read["size"] * scale_radius_to_hlr
-    #cat["Min_halflight"].unit = "arcsec"
-    #cat["Peak_flux"] = cat["Total_flux"]  # / (2.*cat['Maj']*arcsectorad)
-    #cat["Peak_flux"].unit = "Jy"
-    # ANNA: end check if those are still needed
-
     cat["Rs"] = cat_read["Rs"]
     rdcl = cat_read["RadioClass"]  # to be used in source selection
     cat["RadioClass"] = rdcl
 
-    ###Position angle needs modifications and filling for AGN
-    pa = cat_read["PA"]  # this is the HI PA for HI x continuum. rotate of 90 degs for AGN counterparts
+    #source position angle
+    pa = cat_read["PA"]  # position angle
 
     if HI_cross == True:
         # PA in continuum is the HI PA rotated by 90 degs
@@ -723,16 +741,50 @@ def runSkyModel(config):
     pa[pa == -100] = pa_2[pa == -100]
     pa_2 = 0
     
-
-
     cat["PA"] = pa
     cat["PA"].unit = "deg"
 
+    # A cross-catalogue has the continuum sources as additional columns.
+    # couterparts have values on the primary columns which should be used. Continuum-only sources need top be loaded from the additional columns
+
+    if HI_cross == True:
+        z_1 = cat_read["redshift_1"]
+        z[z == -100] = z_1[z == -100]
+        q1 = cat_read["axis ratio_1"]
+        q[q == -100] = q1[q == -100]
+
+        
+    cat["z"] = z
+
+
+    # SELECT THE RELEVANT PORTION OF THE T-RECS CATALOGUE
+    # read the relevant quantities to implement flux cuts
+    if config.getboolean("continuum", "highfluxcut") == True:
+        highflux = config.getfloat("continuum", "highfluxcut_value")
+        flux_sel_freq = config.get("continuum", "fluxcut_frequency")
+        cat["flux_selection"] = cat_read["I" + flux_sel_freq] * 1.0e-3  # Jy
+
+    if config.getboolean("continuum", "lowfluxcut") == True:
+        lowflux = config.getfloat("continuum", "lowfluxcut_value")
+        flux_sel_freq = config.get("continuum", "fluxcut_frequency")
+        cat["flux_selection"] = cat_read["I" + flux_sel_freq] * 1.0e-3  # Jy
+
+    # read the relevant quantities to implement redshift range selection
+    if config.getboolean("continuum", "zrange") == True:
+        zmin = config.getfloat("continuum", "zmin")
+        zmax = config.getfloat("continuum", "zmax")
+
+ 
+    ###APPLY CATALOGUE SELECTION
+    
+
+  
     # select continuum sources
     # exclude too big; memory problem and not realistic
     cat = cat[(cat["RadioClass"] != -100) * (cat["Maj"] < 200.0)]
 
     if config.getboolean("continuum", "highfluxcut") == True:
+        # Exclude sources brigther than a value
         print("applying high flux cut")
         len_old = len(cat)
         cat = cat[(cat["flux_selection"] < highflux)]
@@ -740,6 +792,7 @@ def runSkyModel(config):
         print(len_old - len(cat))
 
     if config.getboolean("continuum", "lowfluxcut") == True:
+        # Exclude sources fainter than a value
         print("applying low flux cut")
         len_old = len(cat)
         cat = cat[(cat["flux_selection"] > lowflux)]
@@ -747,6 +800,7 @@ def runSkyModel(config):
         print(len_old - len(cat))
 
     if config.getboolean("continuum", "zrange") == True:
+        # Exclude sources outside a redshift range
         print("applying redshift range cut")
         len_old = len(cat)
         cat = cat[(cat["z"] >= zmin)]
@@ -762,7 +816,7 @@ def runSkyModel(config):
     cat["New_flux"] = np.zeros(len(cat)).astype(np.str)
     np.random.seed(mother_seed + 100)
 
-    # initialise core fraction. Steep-spectrum AGN dont use it as it is determined by the postage stamp.
+    # initialise core fraction. Steep-spectrum AGN don't use it as it is determined by the postage stamp.
     corefrac = np.random.normal(
         loc=0.75, scale=0.1, size=len(cat)
     )  
@@ -771,12 +825,14 @@ def runSkyModel(config):
 
     # this random number is used later to associate sources to postage stamps
     ranid = np.random.uniform(low=0, high=1, size=len(cat))
+ 
     ranid[cat["Rs"] <= 0.5] = ranid[cat["Rs"] <= 0.5] - 10
     ranid[cat["Rs"] > 0.5] = ranid[cat["Rs"] > 0.5] + 10
     cat["ranid"] = ranid
 
-  
 
+    
+    # exclude sources outside the field of view
     # fov cut, put cos(dec) factor into ra offset
     cosdec = np.cos(dec_field_gs * 2 * np.pi / 360)
     ra_offset_max = (1 / cosdec) * (
@@ -790,69 +846,93 @@ def runSkyModel(config):
 
 
     nobj = len(cat)
+    logging.info('Catalogue total size %s',len(cat))
 
-  
+    # if running in parallel: split the catalogue in similar-sized portions
+    # the selection is done randomly so that all processes get sources in no particular redshuft order
+
+    if (total_cores >1):
+        print("number of objects to share between processes",nobj)
+        np.random.seed(mother_seed + 3479)
+        ranid2 = np.random.uniform(low=0., high=1., size=nobj)
+        cat["ranid2"] = ranid2
+        
+        print('process ',process,'of ',total_cores)
+        delta=1./total_cores
+        cores_cut = (cat["ranid2"] >= delta*(process-1)) * (cat["ranid2"] < delta*process)
+
+
+        #print('cores cut',cores_cut)
+        print(delta*(process-1),delta*process)
+
+        cat=cat[cores_cut]
+        nobj=len(cat)
+        print('Catalogue size for this process: ',nobj)
+        logging.info('Catalogue size for this process: %f',nobj)
+
+    # EXECUTE THE MAIN SIMULATION
+    skipped_sources=0
+    for i, cat_gal in enumerate(cat):
+        add_source_continuum(i,cat_gal,nobj,w_twod,config,pixel_scale_str,psf_maj_arcsec,arr_dims,all_gals_fname,base_freq,freqs,polarization,skipped_sources)
+
+    #todo: skipped_sources does not work, always returns zero.
+    logging.info("Main loop done")
+    logging.info("Skipped sources: %s",skipped_sources)
     
-    multiprocessing.get_context("fork")
-    # set up mutex lock
 
-    with Manager() as manager:
-        # create the shared lock
-        lock = manager.Lock()
-        pool = multiprocessing.Pool(n_cores)
-        
-        for i, cat_gal in enumerate(cat):
-  
-          
-            pool.apply_async(
-                add_source_continuum,
-                args=(
-                    i,
-                    cat_gal,
-                    nobj,
-                    w_twod,
-                    config,
-                    pixel_scale_str,
-                    psf_maj_arcsec,
-                    arr_dims,
-                    all_gals_fname,
-                    base_freq,
-                    freqs,
-                    lock,
-                    polarization
-        
-                ), callback=log_result,
-            )
-
-        pool.close()
-        pool.join()
-   
-    # check all sources have been created and added
-    filled_rows = np.argwhere(cat["Atlas_source"] != "0.0")[
-        :, 0
-    ]  
-    len1 = len(cat)
-    cat = cat[filled_rows]
-    len2 = len(cat)
-    if len1 != len2:
-        print("warning: some sources were not added")
-        print('input sources', len1,' vs output sources', len2)
-        exit()
-
-    # write out continuum catalogue
-    truthcat_name = (
-        data_path + config.get("field", "fits_prefix") + "_truthcat.fits"
-    )
-    logging.info("Writing truth catalogue to: {0} ...".format(truthcat_name))
-    cat.write(truthcat_name, format="fits", overwrite=True)
-
-    # quick check
     print ('summed cube:', np.sum(astfits.getdata(all_gals_fname+".fits")))
     tend = time.time()
     logging.info("...done in {0} seconds.".format(tend - tstart))
     print("skymodel_continuum finished in {0} seconds.".format(tend - tstart))
 
-  
+# run the coadd and combine functions to get a single output set from
+# outputs of multiple processes
+def runCoadd(config,process,total_cores):
+    """Simulate a sky model from a T-RECS catalogue.
+
+    Parameters
+    ----------
+    config : configparser
+        ConfigParser configuration containing necessary sections.
+
+    """
+
+    #edit confing object for the process number
+
+               
+    n_cores = int(config.getfloat("pipeline", "n_cores"))
+   
+    data_path_large_files = (
+        config.get("pipeline", "data_path_large_files")
+        + config.get("pipeline", "project_name")
+        + "/"
+    )
+    data_path = (
+        config.get("pipeline", "base_dir")
+        + config.get("pipeline", "data_path")
+        + config.get("pipeline", "project_name")
+        + "/"
+    )
+
+
+    
+    
+    all_gals_fname = (
+        data_path_large_files + config.get("field", "fits_prefix")
+    )
+    
+
+    coadd(all_gals_fname,n_cores,"")
+
+    if config.getboolean("skymodel", "dopolarization") == True:
+        coadd(all_gals_fname,n_cores,"_P")
+        coadd(all_gals_fname,n_cores,"_Q")
+        coadd(all_gals_fname,n_cores,"_U")
+    
+    combine(all_gals_fname,n_cores)
+
+
+
 
 
 if __name__ == "__main__":

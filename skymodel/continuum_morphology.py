@@ -69,7 +69,7 @@ def make_img(
         )
 
 
-    logging.info("radioclass,size in pixels %f %f", radioclass,Gaussize_in_pixels)
+    #logging.info("radioclass,size in pixels %f %f", radioclass,Gaussize_in_pixels)
     
     ska_ellip = 1.0 - ska_min / ska_size
     beamsigma_in_pixels = psf_maj / sigma2FWHM / ska_dx
@@ -117,7 +117,7 @@ def make_img(
         # flat-spectrum AGN source. A Gaussian lobe with a Gaussian core
 
         # the source is a Gaussian with FWHM=source size, plus a gaussian core of 2 pixels size
-        # gauss2=randomn(seed,nrows)*0.1+0.75
+
         sigma, mu = Gaussize_in_pixels / sigma2FWHM, 0.0
 
         npixs = int(sigma * 8.0) + 1
@@ -140,7 +140,7 @@ def make_img(
 
     if (radioclass == 6) and (Gaussize_in_pixels > 3.0):
         # SS resolved AGN: use a postage stamp from a real image
-        logging.info("Check: %s", datacube_dir + prepared_dir + prepared_metadata)
+        #logging.info("Check: %s", datacube_dir + prepared_dir + prepared_metadata)
         
         is_unresolved = 0
         prepared_cubes = np.loadtxt(datacube_dir + prepared_dir + prepared_metadata, dtype="str")
@@ -153,7 +153,7 @@ def make_img(
         distance_min_arg = np.argmin(distance_to_sample)
 
         
-        logging.info("Chosen atlas source: %s", prepared_cubes[distance_min_arg, 0])
+        #logging.info("Chosen atlas source: %s", prepared_cubes[distance_min_arg, 0])
 
         # get datacube and header properties
         cube_name = prepared_cubes[distance_min_arg, 0]  
@@ -162,7 +162,7 @@ def make_img(
         cube_fits = fits.open(datacube_dir + prepared_dir+cube_name)
         cube = cube_fits[0].data
 
-        logging.info("Atlas sample shape: %s", cube.shape)
+        #logging.info("Atlas sample shape: %s", cube.shape)
        
         if doplot:
             plt.scatter(np.arange(len(cube_summed_spectrum)), cube_summed_spectrum)
@@ -174,16 +174,16 @@ def make_img(
         atlas_bmaj_px = atlas_bmaj / dx
         zoom_factor = ska_size / ska_dx / atlas_bmaj_px
 
-        logging.info("atlas agn size in arcsec %f", atlas_bmaj)
-        logging.info("target agn size in arcsec %f", ska_size)
-        logging.info("atlas agn size in pixels %f", atlas_bmaj_px)
-        logging.info("target agn size in pixels %f", ska_size / ska_dx)
-        logging.info("zoom factor %f", zoom_factor)
+        #logging.info("atlas agn size in arcsec %f", atlas_bmaj)
+        #logging.info("target agn size in arcsec %f", ska_size)
+        #logging.info("atlas agn size in pixels %f", atlas_bmaj_px)
+        #logging.info("target agn size in pixels %f", ska_size / ska_dx)
+        #logging.info("zoom factor %f", zoom_factor)
 
         new_a_size = np.ceil((cube.shape[0] * zoom_factor))
         new_b_size = np.ceil((cube.shape[1] * zoom_factor))
 
-        logging.info("postage stamp size %f", new_a_size)
+        #logging.info("postage stamp size %f", new_a_size)
         is_unresolved = 0
 
         if new_a_size < 3.0:
@@ -212,9 +212,9 @@ def make_img(
         # we want the final postage stamp to have an odd number of pixels and be centered on the central pixel. this is for consistency between continuum and HI
 
         # cube is now resized. Add smoothing that takes into account original resolution of atlas AGN
-        logging.info("original atlas PSF %f", atlas_psf)
-        logging.info("after scaling %f", atlas_psf * zoom_factor)
-        logging.info("atlas psf in pixels %f", atlas_psf * zoom_factor / ska_dx)
+        #logging.info("original atlas PSF %f", atlas_psf)
+        #logging.info("after scaling %f", atlas_psf * zoom_factor)
+        #logging.info("atlas psf in pixels %f", atlas_psf * zoom_factor / ska_dx)
 
         psf_smooth = np.square(psf_maj / ska_dx) - np.square(atlas_psf * zoom_factor / ska_dx)  # additional smoothing PSF in units of the map pixel
 
@@ -299,19 +299,19 @@ def make_img(
 
     cube3 = cube2_allfreqs  # this will be the smoothed version
 
-    logging.info("cube name: %s", cube_name)
-    logging.info("Rotating to position angle: %f", ska_PA)
+    #logging.info("cube name: %s", cube_name)
+    #logging.info("Rotating to position angle: %f", ska_PA)
     # ~~~~~~~~~~~~ rotate to PA ~~~~~~~~~~~~~~~~~~~~~~
 
     cube4 = scipy.ndimage.rotate(
         cube3, ska_PA - 90, axes=(1, 2), reshape=False
     )  # subract 90 to give PA anti-clockwise from North
 
-    logging.info("Final shape of subcube %s", cube4.shape)
+    #logging.info("Final shape of subcube %s", cube4.shape)
     np.putmask(cube4, cube4 < 0, 0)
 
- 
-
+    #this means this source has been added correctly
+    
     
   
 
@@ -320,7 +320,7 @@ def make_img(
         cube4,
         cube_name.split('/')[-1],
         is_unresolved,
-        ska_flux,
+        ska_flux
     )  # sources are now centred on dynamical centre of galaxy (according to crpix values in original_blanked_cubes) so dont need to pass crpix values (assuming centred)
 
 
