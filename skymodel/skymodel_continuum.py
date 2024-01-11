@@ -383,7 +383,7 @@ def runSkyModel(config,process,total_cores):
     if total_cores >1:
         process_tag="_"+str(process)
     #    process_add=int(process)
-        
+        time.sleep(60*process) #stagger processes to avoid too much reading and writing on disk at the same time  
     tstart = time.time()    
     # Set up logging
     logfilename = "logs/%s.log" % config.get("field", "fits_prefix")+process_tag
@@ -480,7 +480,7 @@ def runSkyModel(config,process,total_cores):
 
     # this is the definition of logarithmically-spaced frequencies
     if (logfreq == True):
-        nfreqs=1
+        nfreqs=0
         freq=base_freq
 
         while freq <= top_freq:
@@ -492,8 +492,11 @@ def runSkyModel(config,process,total_cores):
         for ff in range(nfreqs):
             freqs[ff] = freq
             freq = freq * dnu
-    
-        
+
+        #print(freqs)
+        #print(nfreqs)
+
+                    
     n_chan = nfreqs
     arr_dims = np.array([n_chan, image_size, image_size]).astype(np.int)
 
