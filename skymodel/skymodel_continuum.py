@@ -13,6 +13,7 @@ import sys
 import time
 import galsim
 import numpy as np
+import pickle
 from astropy import units as uns
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import LambdaCDM
@@ -33,7 +34,6 @@ from skymodel.skymodel_tools import setup_wcs
 
 arcsectorad = (1.0 * uns.arcsec).to(uns.rad).value
 degtoarcsec = (1.0 * uns.deg).to(uns.arcsec).value
-
 
 # Add outputs procuced by seleval parallel processes to a single final output
 # .fits
@@ -70,7 +70,7 @@ def coadd(filename,n_cores,tag):
         os.system("rm {0}".format(filename+process_tag+tag+".fits"))
 
 
-# Combine outputs procuced by seleval parallel processes to a single final output
+# Combine outputs produced by seleval parallel processes to a single final output
 # _maxflux.fits
 # _z.fits 
 def combine(filename,n_cores):
@@ -158,16 +158,21 @@ def add_source_continuum(
     #process = multiprocessing.current_process()
     #pid=process.pid
     
-    x, y = w_twod.wcs_world2pix(
-        cat_gal["RA"],
-        cat_gal["DEC"],
-        1,
-    )
+    #x, y = w_twod.wcs_world2pix(
+    #    cat_gal["RA"],
+    #    cat_gal["DEC"],
+    #    1,
+    #)
 
     
-    x = float(x)
-    y = float(y)
+    #x = float(x)
+    #y = float(y)
 
+    x=cat_gal["xs"]
+    y=cat_gal["ys"]
+    #print('vecchio',x,y)
+    #print('nuovo',cat_gal["xs"],cat_gal["ys"])
+    
     logging.info("RA, Dec: %f %f ", cat_gal["RA"], cat_gal["DEC"])
     logging.info("PA, flux: %f %f ", cat_gal["PA"], cat_gal["Total_flux"])
     logging.info("class:  %f", cat_gal["RadioClass"])
@@ -274,7 +279,7 @@ def add_source_continuum(
         trc2,
     )
 
-    # to prevent crashes in case the object is cropped so much une of the dimensions is zero
+    # to prevent crashes in case the object is cropped so much one of the dimensions is zero
     if ((trc1+1 <=blc1) or (trc2+1<=blc2)):
         logging.info("Skipping this source as outside of field")
         skipped_sources=skipped_sources+1
@@ -382,7 +387,7 @@ def runSkyModel(config,process,total_cores):
     #process_add=0
     if total_cores >1:
         process_tag="_"+str(process)
-    #    process_add=int(process)
+
         time.sleep(60*process) #stagger processes to avoid too much reading and writing on disk at the same time  
     tstart = time.time()    
     # Set up logging
@@ -671,7 +676,7 @@ def runSkyModel(config,process,total_cores):
     cat = Table()
     cat_read = Table.read(cat_file_name)  # remove ascii
     keywords = cat_read.colnames
-
+    logging.info("Done")
     # use the HI mass keyword to identify an HIXcontinuum catalogue
     if "MHI" in keywords:
         HI_cross = True
@@ -783,9 +788,12 @@ def runSkyModel(config,process,total_cores):
 
   
     # select continuum sources
+    cat = cat[(cat["RadioClass"] != -100)]
+    
     # exclude too big; memory problem and not realistic
-    cat = cat[(cat["RadioClass"] != -100) * (cat["Maj"] < 200.0)]
+    cat = cat[(cat["Maj"] < 2000.0)]
 
+    
     if config.getboolean("continuum", "highfluxcut") == True:
         # Exclude sources brigther than a value
         print("applying high flux cut")
@@ -834,27 +842,127 @@ def runSkyModel(config,process,total_cores):
     cat["ranid"] = ranid
 
 
+    #MSDC4: we want a good-looking source behind 0:04:56.3,-27:05:29
+    #identify a bright big source around z=0.1 and change its position and postage stamp 
+
+    #source ID 171625
+
+
+    test=cat[cat["Source_id"]==171625]
+
+    print('len(test',len(test))
+
+    if (len(test)==1):
+    
+        print('Prima')
+        print(test["Source_id"])
+        print(test["RA"])
+        print(test["DEC"])
+        print(test["Maj"])
+        print(test["ranid"])
+        print(test["z"])
+        print(test["Total_flux"])
+
+        #new coordinates
+        test["RA"]=1.23458+1./60. #(0.+4./60.+56.3/3600.)
+        test["DEC"]=-27.091-1.3/60. #-27.+5./60.+29./3600.
+
+        #choice of postage stamp
+        #test["ranid"]=10.106687 # H3C98.fits
+        test["ranid"]=10.15977587556821 #H3C98.fits_reverse
+    
+        #modify size
+        test["Maj"]=15.*60.
+
+
+        cat[cat["Source_id"]==171625]=test
+
+
+        #verify
+        test=cat[cat["Source_id"]==171625]
+
+    
+        print('Dopo')
+        print(test["Source_id"])
+        print(test["RA"])
+        print(test["DEC"])
+        print(test["Maj"])
+        print(test["ranid"])
+        print(test["z"])
+        print(test["Total_flux"])
+
+
+    #end add a custom source
+
     
     # exclude sources outside the field of view
-    # fov cut, put cos(dec) factor into ra offset
-    cosdec = np.cos(dec_field_gs * 2 * np.pi / 360)
-    ra_offset_max = (1 / cosdec) * (
-        (fov / 60) / 2
-    )  
-    dec_offset_max = (fov / 60) / 2  # convert fov to degrees
-    fov_cut = (abs(cat["ra_offset"]) < ra_offset_max) * (
-        abs(cat["dec_offset"]) < dec_offset_max
-    )
-    cat = cat[fov_cut]
+    #fov cut, put cos(dec) factor into ra offset
+    #cosdec = np.cos(dec_field_gs * 2 * np.pi / 360)
+    #ra_offset_max = (1 / cosdec) * (
+    #    (fov / 60) / 2
+    #)  
+    #dec_offset_max = (fov / 60) / 2  # convert fov to degrees
+    #fov_cut = (abs(cat["ra_offset"]) < ra_offset_max) * (
+    #    abs(cat["dec_offset"]) < dec_offset_max
+    #)
+
+    #print(type(cat))
+    #print('prima',len(cat),len(cat[fov_cut]),len(cat[~fov_cut]))
+    #cat = cat[~fov_cut] #test complementary 
+    #cat = cat[fov_cut] #original 
+    #print('dopo',len(cat))
+    #exit()
 
 
+    #apply catalogue selection based on pixel projection as otherwise 
+    #I get empty borders
+    
+    nobj=len(cat)
+    selected=np.zeros(nobj)
+    xs=np.zeros(nobj)
+    ys=np.zeros(nobj)
+    #print('ecco',nobj,cr_x,cr_y)
+    logging.info('Selecting for pixel projections')
+    for i, cat_gal in enumerate(cat):
+        x, y = w_twod.wcs_world2pix(cat_gal["RA"],cat_gal["DEC"],1,)    
+        xs[i] = float(x)
+        ys[i] = float(y)
+        # select ony spurces inside the FoV. keeping a 10 pixel padding for large sources 
+        if (x >= -10) and (x <=2*cr_x+10) and (y >= -10) and (y <=2*cr_y+10):
+            selected[i]=1
+    cat=cat[selected==1]
+    xs=xs[selected==1]
+    ys=ys[selected==1]
+    logging.info('Done')
+    cat["xs"] = xs
+    cat["ys"] = ys
+            
     nobj = len(cat)
     logging.info('Catalogue total size %s',len(cat))
 
+    
+    # save the truth catalogue after selections on a pickle file
+    # if run in parallel save just for the first process
+    if (total_cores ==1):
+        
+        logging.info('Writing the truth catalogue')
+        file = open(all_gals_fname+"_catalogue_pickle", 'wb')
+        pickle.dump(cat, file)
+        logging.info('Done')
+            
     # if running in parallel: split the catalogue in similar-sized portions
-    # the selection is done randomly so that all processes get sources in no particular redshuft order
+    # the selection is done randomly so that all processes get sources in no particular redshift order
 
     if (total_cores >1):
+        #if (process ==1):
+            # if multiple processes, write the picke file only once
+            
+            #logging.info('Writing the truth catalogue')
+            #file = open(all_gals_fname+"_catalogue.pickle", 'wb')
+            #pickle.dump(cat, file)
+            #logging.info('Done')
+            
+
         print("number of objects to share between processes",nobj)
         np.random.seed(mother_seed + 3479)
         ranid2 = np.random.uniform(low=0., high=1., size=nobj)
