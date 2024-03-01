@@ -124,7 +124,6 @@ def log_result(result):
     
     global cat
     (i, atlas_source, flux, unresolved,skipped_sources) = result
-    cat["id"][i] = i
     cat["Atlas_source"][i] = atlas_source
     cat["New_flux"][i] = flux
     cat["Unresolved"][i] = unresolved
@@ -154,19 +153,6 @@ def add_source_continuum(
 
     total_sources_added=0 #initialise this variable, if everything goes well make_img returns 1
     
-    # how to ask process name:
-    #process = multiprocessing.current_process()
-    #pid=process.pid
-    
-    #x, y = w_twod.wcs_world2pix(
-    #    cat_gal["RA"],
-    #    cat_gal["DEC"],
-    #    1,
-    #)
-
-    
-    #x = float(x)
-    #y = float(y)
 
     x=cat_gal["xs"]
     y=cat_gal["ys"]
@@ -681,7 +667,7 @@ def runSkyModel(config,process,total_cores):
     if "MHI" in keywords:
         HI_cross = True
     
-    cat["id"] = np.zeros(len(cat_read))
+
     source_prefix = "TRECS-"
     cat["Source_id"] =cat_read["ID_cont"]  # source unique identifier
     cat["RA"] = cat_read["longitude"]  # deg
@@ -694,7 +680,7 @@ def runSkyModel(config,process,total_cores):
   
     # Each source frequency behaviour is approximated as a power law within the cube. A spectral index is computed between the lowest and highest specified frequencies.
     # This approximation is OK for channels within the same band.
-    # For frequencies belonging do different bands, perform multiple runs of the code.
+    # For frequencies belonging to different bands, perform multiple runs of the code.
 
     cat["Total_flux"] = cat_read["I" + base_freqname] * 1.0e-3  # Jy
     cat["Total_flux"].unit = "Jy"
@@ -722,8 +708,9 @@ def runSkyModel(config,process,total_cores):
     cat["Maj"] = maj
     cat["Maj"].unit = "arcsec"
     q = cat_read["axis ratio"]
-    
-    cat["Min"] = maj * q
+    mins=maj * q
+    mins[q ==-100.]=-100.     
+    cat["Min"] = mins
     cat["Min"].unit = "arcsec"
     cat["Rs"] = cat_read["Rs"]
     rdcl = cat_read["RadioClass"]  # to be used in source selection
@@ -830,7 +817,10 @@ def runSkyModel(config,process,total_cores):
     # initialise core fraction. Steep-spectrum AGN don't use it as it is determined by the postage stamp.
     corefrac = np.random.normal(
         loc=0.75, scale=0.1, size=len(cat)
-    )  
+    )
+    corefrac[cat["RadioClass"] < 4]=-100. #SFGs don;t use core fraction
+    corefrac[cat["RadioClass"] == 6]=-100. #Steep-spectrum AGN don't use core fraction
+        
     cat["corefrac"] = corefrac
     np.random.seed(mother_seed + 1000)
 
@@ -839,6 +829,8 @@ def runSkyModel(config,process,total_cores):
  
     ranid[cat["Rs"] <= 0.5] = ranid[cat["Rs"] <= 0.5] - 10
     ranid[cat["Rs"] > 0.5] = ranid[cat["Rs"] > 0.5] + 10
+
+    ranid[cat["RadioClass"] != 6]=-100. #only steep-spectrum AGN use ranid
     cat["ranid"] = ranid
 
 
@@ -850,7 +842,7 @@ def runSkyModel(config,process,total_cores):
 
     test=cat[cat["Source_id"]==171625]
 
-    print('len(test',len(test))
+    print('len(test)',len(test))
 
     if (len(test)==1):
     
@@ -894,27 +886,7 @@ def runSkyModel(config,process,total_cores):
 
     #end add a custom source
 
-    
-    # exclude sources outside the field of view
-    #fov cut, put cos(dec) factor into ra offset
-    #cosdec = np.cos(dec_field_gs * 2 * np.pi / 360)
-    #ra_offset_max = (1 / cosdec) * (
-    #    (fov / 60) / 2
-    #)  
-    #dec_offset_max = (fov / 60) / 2  # convert fov to degrees
-    #fov_cut = (abs(cat["ra_offset"]) < ra_offset_max) * (
-    #    abs(cat["dec_offset"]) < dec_offset_max
-    #)
-
-    #print(type(cat))
-    #print('prima',len(cat),len(cat[fov_cut]),len(cat[~fov_cut]))
-    #cat = cat[~fov_cut] #test complementary 
-    #cat = cat[fov_cut] #original 
-    #print('dopo',len(cat))
-    #exit()
-
-
-    #apply catalogue selection based on pixel projection as otherwise 
+    #apply FoV catalogue selection based on pixel projection as otherwise 
     #I get empty borders
     
     nobj=len(cat)
@@ -927,7 +899,7 @@ def runSkyModel(config,process,total_cores):
         x, y = w_twod.wcs_world2pix(cat_gal["RA"],cat_gal["DEC"],1,)    
         xs[i] = float(x)
         ys[i] = float(y)
-        # select ony spurces inside the FoV. keeping a 10 pixel padding for large sources 
+        # select ony sources inside the FoV. keeping a 10 pixel padding for large sources 
         if (x >= -10) and (x <=2*cr_x+10) and (y >= -10) and (y <=2*cr_y+10):
             selected[i]=1
     cat=cat[selected==1]
@@ -941,26 +913,28 @@ def runSkyModel(config,process,total_cores):
     logging.info('Catalogue total size %s',len(cat))
 
     
-    # save the truth catalogue after selections on a pickle file
+    # save the truth catalogue after selections
     # if run in parallel save just for the first process
     if (total_cores ==1):
         
         logging.info('Writing the truth catalogue')
-        file = open(all_gals_fname+"_catalogue_pickle", 'wb')
-        pickle.dump(cat, file)
+        print('Writing the truth catalogue')
+        cat.write(all_gals_fname+"_catalogue.fits", format="fits", overwrite=True)
         logging.info('Done')
+        print('Done')
+        
             
     # if running in parallel: split the catalogue in similar-sized portions
     # the selection is done randomly so that all processes get sources in no particular redshift order
 
     if (total_cores >1):
-        #if (process ==1):
-            # if multiple processes, write the picke file only once
-            
-            #logging.info('Writing the truth catalogue')
-            #file = open(all_gals_fname+"_catalogue.pickle", 'wb')
-            #pickle.dump(cat, file)
-            #logging.info('Done')
+        if (process ==1):
+            # if multiple processes, write the truth catalogue file only once
+            print('Writing the truth catalogue')
+            logging.info('Writing the truth catalogue')
+            cat.write(all_gals_fname+"_catalogue.fits", format="fits", overwrite=True)
+            print('Done')
+            logging.info('Done')
             
 
         print("number of objects to share between processes",nobj)
