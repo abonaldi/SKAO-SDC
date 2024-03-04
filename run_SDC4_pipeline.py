@@ -28,10 +28,9 @@ if doHI:
 if docontinuum:
     from skymodel.skymodel_continuum import runSkyModel
     config = configparser.ConfigParser()
-    config.read('inis/SDC4/SDC4_run1_z0.ini')
-    runSkyModel(config)
-    config.read('inis/SDC4/SDC4_run1_z1.ini')
-    runSkyModel(config)
+    config.read('inis/SDC4/small/SDC4_run2_v0_z0.ini')
+    runSkyModel(config,1,1)
+
 
 if doobserve:
     config = configparser.ConfigParser()

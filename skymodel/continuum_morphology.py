@@ -17,10 +17,10 @@ from skimage import transform
 
 def make_img(
     config,
-    ska_flux,
-    ska_alpha,
-    ska_freqmin,
-    freqs,
+    #ska_flux,
+    #ska_alpha,
+    #ska_freqmin,
+    #freqs,
     ska_size,
     ska_min,
     ska_PA,
@@ -37,7 +37,7 @@ def make_img(
     prepared_dir = config.get("pipeline", "prepared_dir")
     prepared_metadata = config.get("pipeline", "prepared_metadata")
 
-    nfreqs = len(freqs)
+    #nfreqs = len(freqs)
 
     # for the mild convolution with the beam
     # this is the simple psf beam
@@ -274,7 +274,11 @@ def make_img(
             padding_a : padding_a + size_a, padding_b : padding_b + size_b
         ]
         cube2 = cube2 / np.sum(cube2)
+        
+    # this part I now move out of the subroutine to do total intensity and polkarization separately
 
+    #cube3=cube2 #new part
+    '''    
     nfreqs = freqs.size
     new_a_size = cube2.shape[0]
     new_b_size = cube2.shape[1]
@@ -303,13 +307,14 @@ def make_img(
     #logging.info("Rotating to position angle: %f", ska_PA)
     # ~~~~~~~~~~~~ rotate to PA ~~~~~~~~~~~~~~~~~~~~~~
 
+    
     cube4 = scipy.ndimage.rotate(
         cube3, ska_PA - 90, axes=(1, 2), reshape=False
     )  # subract 90 to give PA anti-clockwise from North
 
     #logging.info("Final shape of subcube %s", cube4.shape)
     np.putmask(cube4, cube4 < 0, 0)
-
+'''
     #this means this source has been added correctly
     
     
@@ -317,10 +322,10 @@ def make_img(
 
 
     return (
-        cube4,
+        cube2,
         cube_name.split('/')[-1],
         is_unresolved,
-        ska_flux
+        #ska_flux
     )  # sources are now centred on dynamical centre of galaxy (according to crpix values in original_blanked_cubes) so dont need to pass crpix values (assuming centred)
 
 
