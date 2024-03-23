@@ -160,11 +160,12 @@ def add_source_continuum(
     x=cat_gal["xs"]
     y=cat_gal["ys"]
 
-    '''
+    
     print('source',cat_gal["Source_id"])
 
     print('flux at 75',cat_gal["I75"])
     print('flux at 150',cat_gal["I150"])
+    '''
     print('flux at 300',cat_gal["I300"])
     print('flux at 600',cat_gal["I600"])
     print('flux at 1200',cat_gal["I1200"])
@@ -176,8 +177,8 @@ def add_source_continuum(
     print('Pflux at 1200',cat_gal["P1200"])
     print('Pflux at 2400',cat_gal["P2400"])
     print('polafract',cat_gal["polafrac"])
-
-    ''' 
+'''
+    
     logging.info("RA, Dec: %f %f ", cat_gal["RA"], cat_gal["DEC"])
     logging.info("PA, flux: %f %f ", cat_gal["PA"], cat_gal["Total_flux"])
     logging.info("class:  %f", cat_gal["RadioClass"])
@@ -189,10 +190,6 @@ def add_source_continuum(
     # it can be AGN from library, Gaussian lobe and Gaussian core, Sersic of simple Gaussian
     sub_img_1D, atlas_source, unresolved = make_img(
         config,
-        #cat_gal["Total_flux"],
-        #cat_gal["spectral_index"],
-        #base_freq,
-        #freqs,
         cat_gal["Maj"],
         cat_gal["Min"],
         cat_gal["PA"],
@@ -204,6 +201,10 @@ def add_source_continuum(
     )
 
 
+
+    
+    print('controllo postage stamp',np.sum(sub_img_1D))
+    
     #start new part - where 1 scale the frequencies here and separately for P and I
     #sub_img_1D is now normalised to 1 and gets multiplied by the fluxes directly
 
@@ -213,7 +214,10 @@ def add_source_continuum(
 
     sub_img = np.zeros((nfreqs, int(new_a_size), int(new_b_size))).astype(np.float32)
 
-#    print('initial norm',np.sum(sub_img_1D))
+
+    fluxes=np.zeros(nfreqs)
+    polafracs=np.zeros(nfreqs)+1. # polarization fractions initialised to 1
+    
     for ff in range(nfreqs):
 
         #old one: spectral index approximation
@@ -222,10 +226,26 @@ def add_source_continuum(
         #)  # flux mormalization for frequency freq
         test="I"+str(int(freqs[ff]))
         norm=cat_gal[test]
-#        print('flux',norm)
         sub_img[ff] = sub_img_1D * norm  
+        fluxes[ff]=norm
+        
+    #print('fluxes=',fluxes)
+        
+    if (polarization == True):
+        for ff in range(nfreqs):
 
-    
+        #old one: spectral index approximation
+        #norm = (
+        #    ska_flux * (freqs[ff] / ska_freqmin) ** ska_alpha
+        #)  # flux mormalization for frequency freq
+            test="P"+str(int(freqs[ff]))
+            norm=cat_gal[test]
+            polafracs[ff]=norm/fluxes[ff]
+
+     #   print('polafracs',polafracs)
+        polafracs[fluxes==0]=1.
+
+    # rotate and crop the postage stamp 
     #PA rotation
     cube3=sub_img
     cube4 = scipy.ndimage.rotate(
@@ -240,7 +260,7 @@ def add_source_continuum(
     # work out overlaps, cuts etc
     sub_img_shape = sub_img.shape
     sub_img_size = sub_img.shape[1]
-    logging.info("postage stamp size %f", sub_img_size)
+    #logging.info("postage stamp size %f", sub_img_size)
 
     # works out the bounds for the postage stamp in the FoV image
     l_bounds = np.array([0, y, x]) - np.array(
@@ -254,17 +274,17 @@ def add_source_continuum(
         ]
     )
 
-    logging.info("Lower bounds, upper bounds: %s, %s", l_bounds, u_bounds)
+    #logging.info("Lower bounds, upper bounds: %s, %s", l_bounds, u_bounds)
 
     l_bounds = np.floor(l_bounds).astype(np.int)
     u_bounds = np.floor(u_bounds).astype(np.int)
 
-    logging.info(
-        "Lower bounds, upper bounds, int: %s, %s",
-        l_bounds,
-        u_bounds,
-    )
-    logging.info("Subcube shape: %s", sub_img.shape)
+    #logging.info(
+    #    "Lower bounds, upper bounds, int: %s, %s",
+    #    l_bounds,
+    #    u_bounds,
+    #)
+    #logging.info("Subcube shape: %s", sub_img.shape)
 
     # add it to the large cube
     img3 = sub_img
@@ -308,17 +328,21 @@ def add_source_continuum(
         blc0, blc1, blc2 = blcs
         trc0, trc1, trc2 = trcs
 
-    logging.info(
-        "BLC, TRC: %f %f %f, %f %f %f ",
-        blc0,
-        blc1,
-        blc2,
-        trc0,
-        trc1,
-        trc2,
-    )
+    #logging.info(
+    #    "BLC, TRC: %f %f %f, %f %f %f ",
+    #    blc0,
+    #    blc1,
+    #    blc2,
+    #    trc0,
+    #    trc1,
+    #    trc2,
+    #)
 
     flux=np.sum(img3[0])
+
+
+
+    
     # to prevent crashes in case the object is cropped so much one of the dimensions is zero
     if ((trc1+1 <=blc1) or (trc2+1<=blc2)):
         logging.info("Skipping this source as outside of field")
@@ -367,8 +391,10 @@ def add_source_continuum(
 
         # update total intensity cube
     region = fitsf[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-    img3 += region  
-    fitsf[0].write(img3, blc0, blc1, blc2, trc0, trc1, trc2)
+    region = region + img3  
+    #print('total intensity',np.sum(region))
+
+    fitsf[0].write(region, blc0, blc1, blc2, trc0, trc1, trc2)
 
     fitsf.close()
     fitsf_f.close()
@@ -379,48 +405,37 @@ def add_source_continuum(
         fitsf_p = FITS(all_gals_fname + "_P.fits", "rw")
         fitsf_q = FITS(all_gals_fname + "_Q.fits", "rw")
         fitsf_u = FITS(all_gals_fname + "_U.fits", "rw")
-
-        #here redo img3_pola correctly
-        #img3_pola_1D=img3[0]/cat_gal["Total_flux"] # dimensions initialised. Normalised to 1 again if has not been cut
-        img3_pola_1D=img3[0]/flux # dimensions initialised. Normalised to 1 again if has not been cut
-        img3_pola=img3 #dimension initialised
         
-        #print("pola initial norm",np.sum(img3_pola_1D))
-        
+        img3_pola=img3 #polarization postage stamp initialised here as the total intensity. 
         for ff in range(nfreqs):
-
-             test="P"+str(int(freqs[ff]))
-             norm=cat_gal[test]
-             #print('Pflux',norm)
-             img3_pola[ff] = img3_pola_1D * norm  
-
-        #     print(test,norm,np.sum(img3_pola[ff]))
-
-        #exit()
+            img3_pola[ff,:,:] = img3_pola[ff,:,:] * polafracs[ff] 
+        
         img3_q=img3_pola*np.cos(cat_gal['EVPA']/ 180. * np.pi)
         img3_u=img3_pola*np.sin(cat_gal['EVPA']/ 180. * np.pi)
             
         #update polarised intensity cube
         region = fitsf_p[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-        img3_pola += region
-        fitsf_p[0].write(img3_pola, blc0, blc1, blc2, trc0, trc1, trc2)
+        region = region + img3_pola
+      #  print('polarization',np.sum(region))
+      
+        fitsf_p[0].write(region, blc0, blc1, blc2, trc0, trc1, trc2)
 
         #update Stokes Q cube
         region = fitsf_q[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-        img3_q += region
-        fitsf_q[0].write(img3_q, blc0, blc1, blc2, trc0, trc1, trc2)
+        region = region +img3_q
+        fitsf_q[0].write(region, blc0, blc1, blc2, trc0, trc1, trc2)
 
 
         #update Stokes U cube
         region = fitsf_u[0][blc0 : trc0 + 1, blc1 : trc1 + 1, blc2 : trc2 + 1]
-        img3_u += region
-        fitsf_u[0].write(img3_u, blc0, blc1, blc2, trc0, trc1, trc2)
+        region = region +img3_u
+        fitsf_u[0].write(region, blc0, blc1, blc2, trc0, trc1, trc2)
 
         fitsf_p.close()
         fitsf_q.close()
         fitsf_u.close()
 
-                        
+        
 
     ###exit()    
     logging.info("")
@@ -445,7 +460,7 @@ def runSkyModel(config,process,total_cores):
     if total_cores >1:
         process_tag="_"+str(process)
 
-        time.sleep(60*process) #stagger processes to avoid too much reading and writing on disk at the same time  
+        time.sleep(60*5*(process-1)) #stagger processes to avoid too much reading and writing on disk at the same time  
     tstart = time.time()    
     # Set up logging
     logfilename = "logs/%s.log" % config.get("field", "fits_prefix")+process_tag
@@ -460,7 +475,7 @@ def runSkyModel(config,process,total_cores):
 
     
     logging.info("Beginning simulation")
-
+    print('Beginning simulation')
 
     # read keywords from the config file
     n_cores = int(config.getfloat("pipeline", "n_cores"))
@@ -529,9 +544,9 @@ def runSkyModel(config,process,total_cores):
     logging.info("Final top_freq, Hz: %f", top_freq)
 
     # at least first and last frequencies are needed. check that they are present   
-  
+    
     dnu = config.getfloat("observation", "channel_width")
-
+    
     # this is the definition of linearly-spaced frequencies
     if (logfreq == False):
         nfreqs = int((top_freq - base_freq) / dnu) + 1
@@ -544,6 +559,10 @@ def runSkyModel(config,process,total_cores):
 
     # this is the definition of logarithmically-spaced frequencies
     if (logfreq == True):
+        if (dnu<1):
+            logging.info("Error: Channel_width for logarithmic spacing needs to  be >1")
+            exit()
+            
         nfreqs=0
         freq=base_freq
 
@@ -551,6 +570,7 @@ def runSkyModel(config,process,total_cores):
             freq=freq*dnu
             nfreqs=nfreqs+1
 
+        #print(nfreqs)
         freqs = np.zeros(nfreqs).astype(np.float32)
         freq = base_freq
         for ff in range(nfreqs):
@@ -559,7 +579,7 @@ def runSkyModel(config,process,total_cores):
 
     # here I have the frequencies
 
-    
+    #print('freqs=',freqs)
         
     n_chan = nfreqs
     arr_dims = np.array([n_chan, image_size, image_size]).astype(np.int)
@@ -602,6 +622,8 @@ def runSkyModel(config,process,total_cores):
     #    print ('**** message from pipeline: not running skymodel_continuum this time')
     #    return
 
+
+    #print('sto per cancellare i files')
     # CHOICE2: overwrite files
     os.system("rm {0}".format(all_gals_fname+ ".fits"))
     os.system("rm {0}".format(all_gals_fname + "_z.fits"))
@@ -736,6 +758,7 @@ def runSkyModel(config,process,total_cores):
     cat_read = Table.read(cat_file_name)  # remove ascii
     keywords = cat_read.colnames
     logging.info("Done")
+    print('catalogue loaded')
     # use the HI mass keyword to identify an HIXcontinuum catalogue
     if "MHI" in keywords:
         HI_cross = True
@@ -744,35 +767,37 @@ def runSkyModel(config,process,total_cores):
     source_prefix = "TRECS-"
     cat["Source_id"] =cat_read["ID_cont"]  # source unique identifier
     cat["RA"] = cat_read["longitude"]  # deg
-    #cat["ra_offset"] = cat["RA"] - ra_field_gs  # deg
-    #cat["ra_offset"].unit = "deg"
     cat["DEC"] = cat_read["latitude"]  # deg
-    #cat["dec_offset"] = cat_read["latitude"] - dec_field_gs  # deg
-    #cat["dec_offset"].unit = "deg"
     z = cat_read["redshift"]
 
 
     # Each source frequency behaviour is approximated as a power law within the cube. A spectral index is computed between the lowest and highest specified frequencies.
     # This approximation is OK for channels within the same band.
     # For frequencies belonging to different bands, perform multiple runs of the code.
+    
+    # there is some error in the following that causes the program to stop or crash
+    '''
+    if ("I"+base_freqname in keywords) and ("I"+top_freqname in keywords):
+        print('yes')
+        loggin.info("base_freq and top_freq present in the catalogue")
+    else:
+        print('no')
+        loggin.info("Error: base_freq and top_freq present in the catalogue")
+        #exit()
 
+    '''
+        
     
     cat["Total_flux"] = cat_read["I" + base_freqname] * 1.0e-3  # Jy
     cat["Total_flux"].unit = "Jy"
-    #cat["flux2"] = cat_read["I" + top_freqname] * 1.0e-3  # Jy
-    #cat["flux2"].unit = "Jy"
-    #cat["spectral_index"] = np.log10(cat["Total_flux"] / cat["flux2"]) / np.log10(base_freq / top_freq)
-
+    
     #Initialise polarization fraction as 1 so that P=I if polarization ==False
     cat["polafrac"] = cat["Total_flux"]*0.+1.
 
-    
+        
     # Check that the catalogue contains fluxes for at leaast the first and last frequency of the interval
-    if ("I"+base_freqname in keywords) and ("I"+top_freqname in keywords):
-        loggin.info("base_freq and top_freq present in the catalogue")
-    else:
-        loggin.info("Error: base_freq and top_freq present in the catalogue")
-        exit()
+   
+
     
     # read total intensity fields from catalogue
     field_present=np.zeros(nfreqs) #flag to record which fields are present in the catalogue and which ones are not
@@ -784,7 +809,8 @@ def runSkyModel(config,process,total_cores):
         if (test in keywords):
             cat[test]=cat_read[test] * 1.0e-3  # Jy
             field_present[ff]=1.
-
+            
+    
     # fill missing total intensity fields, if any, with spectral index approx.
     for ff in range(nfreqs):
         test="I"+str(int(freqname))
@@ -804,6 +830,7 @@ def runSkyModel(config,process,total_cores):
                 if (field_present[ff1] ==1.):
                     break
 
+            
             logging.info(test+' not provided. compute using '+I_before+' and '+I_after)
    
             spectral_index = np.log10(cat[I_before] / cat[I_after]) / np.log10(f_before / f_after)
@@ -812,20 +839,23 @@ def runSkyModel(config,process,total_cores):
             cat[test]=cat[I_before]*(freqs[ff]/f_before)**spectral_index
                 
     
-
+    
     if (polarization == True):
+        
         #read polarization fields for catalogue
         cat["polafrac"] = cat_read["P" + base_freqname] * 1.0e-3 /cat["Total_flux"]
         #polafrac is needed for the maxflux map. polarization fraction at the lowest frequency
          
-
+        
         # read polarised intensity at all frequencies from catalogue if present
         for ff in range(nfreqs):
             freqname=freqs[ff]
             test="P"+str(int(freqname))
             if (field_present[ff]==1.):
                 cat[test]=cat_read[test] * 1.0e-3  # Jy
-         
+        
+        # there is some error in the following that causes the program to stop or crash
+        '''
         # fill the remaining frequencies if any with spectral index approx
         for ff in range(nfreqs):
             test="P"+str(int(freqname))
@@ -851,7 +881,8 @@ def runSkyModel(config,process,total_cores):
                 
             cat[test]=cat[I_before]*(freqs[ff]/f_before)**spectral_index
                 
-    
+        print('qui finito')
+        '''
         # generate polarization angle
         # convention it is 0 at North and anticlockwise
         np.random.seed(mother_seed + 1093548)
