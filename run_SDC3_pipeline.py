@@ -2,22 +2,15 @@ import configparser
 import os
 import sys
 import time
+import multiprocessing
+from multiprocessing import Manager
+from multiprocessing import pool
+
 
 doHI = False
 docontinuum = True
 doobserve = False
-
 tstart = time.time()
-#print (sys.argv)
-#if len(sys.argv)>1:
-#   cver = sys.argv[1]
-#   if not cver in ['dev', 'ldev', 'eval', 'full']:
-#       print ("please select from: dev, ldev, eval, full")
-#       exit()
-#else:       
-#    cver = 'dev'
-
-
 
 
 if doHI:
@@ -26,13 +19,26 @@ if doHI:
     from skymodel.skymodel_HI import runSkyModel
     runSkyModel(config)
 if docontinuum:
-    config = configparser.ConfigParser()
-    config.read('inis/SDC3/SDC3_continuum_v2.ini')
     from skymodel.skymodel_continuum import runSkyModel
-    runSkyModel(config)
-#    config = configparser.ConfigParser()
-#    config.read('inis/skymodel/continuum/SDC2_continuum_'+cver+'_f2.ini')
-#    runSkyModel(config)
+    from skymodel.skymodel_continuum import runCoadd
+
+    config = configparser.ConfigParser()
+    config.read('inis/SDC3a/SDC3_continuum_v4_1.ini')
+    n_cores = int(config.getfloat("pipeline", "n_cores"))
+
+    multiprocessing.get_context("fork")
+    with Manager() as manager:
+        pool = multiprocessing.Pool(n_cores)
+        for i in range(n_cores):
+            pool.apply_async(
+                runSkyModel(config,1,n_cores))
+            pool.close()
+            pool.join()
+
+    if (n_cores >1):
+        runCoadd(config,i+1,n_cores)
+
+    
 if doobserve:
     config = configparser.ConfigParser()
     config.read('inis/observe/SDC2_observe_'+cver+'.ini')
