@@ -1020,7 +1020,7 @@ def runSkyModel(config,process,total_cores):
     ranid[cat["RadioClass"] != 6]=-100. #only steep-spectrum AGN use ranid
     cat["ranid"] = ranid
 
-
+    '''
     #MSDC4: we want a good-looking source behind 0:04:56.3,-27:05:29
     #identify a bright big source around z=0.1 and change its position and postage stamp 
 
@@ -1047,7 +1047,6 @@ def runSkyModel(config,process,total_cores):
         test["DEC"]=-27.091-1.3/60. #-27.+5./60.+29./3600.
 
         #choice of postage stamp
-        #test["ranid"]=10.106687 # H3C98.fits
         test["ranid"]=10.15977587556821 #H3C98.fits_reverse
     
         #modify size
@@ -1072,7 +1071,7 @@ def runSkyModel(config,process,total_cores):
 
 
     #end add a custom source
-
+    '''
     #apply FoV catalogue selection based on pixel projection as otherwise 
     #I get empty borders
     
