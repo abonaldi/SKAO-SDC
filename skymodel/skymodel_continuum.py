@@ -842,77 +842,7 @@ def runSkyModel(config,process,total_cores):
     cat["ranid"] = ranid
 
 
-    #MSDC4: we want a good-looking source behind 0:04:56.3,-27:05:29
-    #identify a bright big source around z=0.1 and change its position and postage stamp 
-
-    #source ID 171625
-
-
-    test=cat[cat["Source_id"]==171625]
-
-    print('len(test',len(test))
-
-    if (len(test)==1):
     
-        print('Prima')
-        print(test["Source_id"])
-        print(test["RA"])
-        print(test["DEC"])
-        print(test["Maj"])
-        print(test["ranid"])
-        print(test["z"])
-        print(test["Total_flux"])
-
-        #new coordinates
-        test["RA"]=1.23458+1./60. #(0.+4./60.+56.3/3600.)
-        test["DEC"]=-27.091-1.3/60. #-27.+5./60.+29./3600.
-
-        #choice of postage stamp
-        #test["ranid"]=10.106687 # H3C98.fits
-        test["ranid"]=10.15977587556821 #H3C98.fits_reverse
-    
-        #modify size
-        test["Maj"]=15.*60.
-
-
-        cat[cat["Source_id"]==171625]=test
-
-
-        #verify
-        test=cat[cat["Source_id"]==171625]
-
-    
-        print('Dopo')
-        print(test["Source_id"])
-        print(test["RA"])
-        print(test["DEC"])
-        print(test["Maj"])
-        print(test["ranid"])
-        print(test["z"])
-        print(test["Total_flux"])
-
-
-    #end add a custom source
-
-    
-    # exclude sources outside the field of view
-    #fov cut, put cos(dec) factor into ra offset
-    #cosdec = np.cos(dec_field_gs * 2 * np.pi / 360)
-    #ra_offset_max = (1 / cosdec) * (
-    #    (fov / 60) / 2
-    #)  
-    #dec_offset_max = (fov / 60) / 2  # convert fov to degrees
-    #fov_cut = (abs(cat["ra_offset"]) < ra_offset_max) * (
-    #    abs(cat["dec_offset"]) < dec_offset_max
-    #)
-
-    #print(type(cat))
-    #print('prima',len(cat),len(cat[fov_cut]),len(cat[~fov_cut]))
-    #cat = cat[~fov_cut] #test complementary 
-    #cat = cat[fov_cut] #original 
-    #print('dopo',len(cat))
-    #exit()
-
 
     #apply catalogue selection based on pixel projection as otherwise 
     #I get empty borders
