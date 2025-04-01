@@ -1,6 +1,6 @@
-# Science Data Challenge 3a: EoR foreground removal
+# Science Data Challenges
 
-This repository contains a collection of scripts used to generate mock SKA-Mid-observed neutral hydrogen (HI) datacubes for the second SKA Science Data Challenge ([SDC2](https://sdc2.astronomers.skatelescope.org/)). A detailed description on the simulations can be found in Section 3 of the SDC2 [paper](https://arxiv.org/abs/2303.07943).
+This repository contains a collection of scripts used to generate mock datacubes corresponding to T-RECS catalogues. 
 
 ### Prerequisites
 
@@ -37,18 +37,6 @@ The pipeline uses catalogue files produced using [T-RECS](https://github.com/abo
 ### Basic usage
 
 `python run_SDC3_pipeline.py`
-
-### Detailed usage
-
-#### How to run the SDC2 simulation pipeline
-
-An end-to-end pipeline, `run_SDC3_pipeline.py`, can be used to simulate the data products produced for SDC3. 
-
-
-### Changes 
-
-These scripts does not reproduce the exact same output as the data products used in SDC3. This is due to a change in the code to run in parallel that has modified the was that random seed is handles with respect to the version used for SDC3a.
-
 
 
 
