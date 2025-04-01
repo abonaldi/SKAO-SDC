@@ -22,8 +22,7 @@ mp.get_context("fork")
 with mp.Manager() as manager:
     pool = mp.Pool(n_cores)
     for i in range(n_cores):
-        pool.apply_async(
-            runSkyModel(config,i+1,n_cores))
+        pool.apply_async(runSkyModel,args=(config,i+1,n_cores))
     pool.close()
     pool.join()
 
