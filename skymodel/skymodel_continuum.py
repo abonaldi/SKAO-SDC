@@ -160,12 +160,12 @@ def add_source_continuum(
     x=cat_gal["xs"]
     y=cat_gal["ys"]
 
-    
+    '''
     print('source',cat_gal["Source_id"])
 
     print('flux at 75',cat_gal["I75"])
     print('flux at 150',cat_gal["I150"])
-    '''
+    
     print('flux at 300',cat_gal["I300"])
     print('flux at 600',cat_gal["I600"])
     print('flux at 1200',cat_gal["I1200"])
@@ -202,9 +202,7 @@ def add_source_continuum(
 
 
 
-    
-    print('controllo postage stamp',np.sum(sub_img_1D))
-    
+        
     #start new part - where 1 scale the frequencies here and separately for P and I
     #sub_img_1D is now normalised to 1 and gets multiplied by the fluxes directly
 
@@ -1020,7 +1018,7 @@ def runSkyModel(config,process,total_cores):
     ranid[cat["RadioClass"] != 6]=-100. #only steep-spectrum AGN use ranid
     cat["ranid"] = ranid
 
-    '''
+    
     #MSDC4: we want a good-looking source behind 0:04:56.3,-27:05:29
     #identify a bright big source around z=0.1 and change its position and postage stamp 
 
@@ -1071,7 +1069,7 @@ def runSkyModel(config,process,total_cores):
 
 
     #end add a custom source
-    '''
+ 
     #apply FoV catalogue selection based on pixel projection as otherwise 
     #I get empty borders
     
@@ -1085,7 +1083,7 @@ def runSkyModel(config,process,total_cores):
         x, y = w_twod.wcs_world2pix(cat_gal["RA"],cat_gal["DEC"],1,)    
         xs[i] = float(x)
         ys[i] = float(y)
-        # select ony sources inside the FoV. keeping a 10 pixel padding for large sources 
+        # select only sources inside the FoV. keeping a 10 pixel padding for large sources 
         if (x >= -10) and (x <=2*cr_x+10) and (y >= -10) and (y <=2*cr_y+10):
             selected[i]=1
     cat=cat[selected==1]
