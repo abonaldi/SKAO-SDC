@@ -1,7 +1,6 @@
 import pdb
 import time
-
-import galsim
+#import galsim
 import numpy as np
 from astropy import wcs
 from astropy.io import fits
@@ -31,11 +30,15 @@ def get_spectral_sampling(config, rest_freq, ref_freq, dnu):
 
 def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
 
-    pixel_scale = config.getfloat("skymodel", "pixel_scale") * galsim.arcsec
+    pixel_scale = config.getfloat("skymodel", "pixel_scale")# * galsim.arcsec
     fov = config.getfloat("field", "field_of_view")
 
-    fov, image_size = get_image_size((fov), pixel_scale / galsim.arcsec)
+    fov, image_size = get_image_size((fov), pixel_scale)# / galsim.arcsec)
 
+    print(pixel_scale,image_size)
+    #exit()
+
+    
     dnu = config.getfloat("observation", "channel_width")
 
     # rest frequency defined only for spectral mode. Eliminate the need for this keyword in continuum
@@ -82,8 +85,8 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
         ]
 
         w.wcs.cdelt = [
-            -pixel_scale / galsim.degrees,
-            pixel_scale / galsim.degrees,
+            -pixel_scale / 3600., #galsim.degrees,
+            pixel_scale / 3600.,#galsim.degrees,
             dnu*1.e6,
             1,
         ]
@@ -102,7 +105,7 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
             np.ceil((image_size) / 2),
             crpix3,
         ]
-        w.wcs.cdelt = [-pixel_scale / galsim.degrees, pixel_scale / galsim.degrees, dZ]
+        w.wcs.cdelt = [-pixel_scale / 3600. , pixel_scale / 3600, dZ]
         w.wcs.crval = [ra_field_gs, dec_field_gs, ref_vel]
         w.wcs.ctype = [
             "RA---SIN",
@@ -114,9 +117,13 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
 
     elif ndim == 2:
         w.wcs.crpix = [np.ceil((image_size) / 2), np.ceil((image_size) / 2)]
-        w.wcs.cdelt = [-pixel_scale / galsim.degrees, pixel_scale / galsim.degrees]
+        w.wcs.cdelt = [-pixel_scale / 3600, pixel_scale / 3600.]
         w.wcs.crval = [ra_field_gs, dec_field_gs]
         w.wcs.ctype = ["RA---SIN", "DEC--SIN"]
         w.wcs.cunit = ["deg", "deg"]
 
+
+
+    print(w.wcs.cdelt)
+    exit()
     return w

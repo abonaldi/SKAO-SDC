@@ -8,7 +8,7 @@ import multiprocessing
 import os
 import sys
 import time
-import galsim
+#import galsim
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as uns
@@ -30,7 +30,7 @@ from skymodel.skymodel_tools import setup_wcs
 
 arcsectorad = (1.0 * uns.arcsec).to(uns.rad).value
 degtoarcsec = (1.0 * uns.deg).to(uns.arcsec).value
-
+degtorad= (1.0 * uns.deg).to(uns.rad).value
 
 #def initialise_file(filename, ):
     
@@ -290,9 +290,9 @@ def runSkyModel(config):
 
     # set image properties
     psf_maj_arcsec = config.getfloat("skymodel", "simple_psf_maj")
-    psf_maj = psf_maj_arcsec * galsim.arcsec
-    psf_min = config.getfloat("skymodel", "simple_psf_min") * galsim.arcsec
-    psf_pa = config.getfloat("skymodel", "simple_psf_pa") * galsim.degrees
+    psf_maj = psf_maj_arcsec * arcsectorad
+    psf_min = config.getfloat("skymodel", "simple_psf_min") * arcsectorad
+    psf_pa = config.getfloat("skymodel", "simple_psf_pa") * degtorad
     pixel_scale = config.getfloat("skymodel", "pixel_scale")
     pixel_scale_str = str(pixel_scale).split()[0]
     fov = config.getfloat("field", "field_of_view")
@@ -350,9 +350,9 @@ def runSkyModel(config):
     header_twod = w_twod.to_header()
     header_spectral["BUNIT"] = "Jy/beam"
 
-    bmaj = psf_maj / galsim.degrees
-    bmin = psf_min / galsim.degrees
-    bpa = psf_pa / galsim.radians
+    bmaj = psf_maj / degtorad
+    bmin = psf_min / degtorad
+    bpa = psf_pa / degtorad
 
     header_spectral["BMAJ"] = bmaj
     header_spectral["BMIN"] = bmin

@@ -3,6 +3,10 @@ Script to convert a T-RECS catalogue into a continuum sky model FITS file.
 
 Usage:
 python skymodel.py example.ini
+
+Author: Anna Bonaldi, Ian Harrison
+
+
 """
 
 
@@ -11,7 +15,7 @@ import multiprocessing
 import os
 import sys
 import time
-import galsim
+#import galsim
 import numpy as np
 import pickle
 from astropy import units as uns
@@ -25,7 +29,6 @@ from numpy.core.defchararray import add as stradd
 from numpy.core.defchararray import multiply as strmultiply
 from multiprocessing import Manager
 from multiprocessing import Process, current_process #AA
-
 import skymodel.skymodel_tools as tools
 from skymodel.continuum_morphology import make_img
 from skymodel.skymodel_tools import setup_wcs
@@ -34,6 +37,7 @@ from skymodel.skymodel_tools import setup_wcs
 
 arcsectorad = (1.0 * uns.arcsec).to(uns.rad).value
 degtoarcsec = (1.0 * uns.deg).to(uns.arcsec).value
+degtorad= (1.0 * uns.deg).to(uns.rad).value
 
 # Add outputs procuced by seleval parallel processes to a single final output
 # .fits
@@ -438,9 +442,11 @@ def runSkyModel(config,process,total_cores):
    
     # set image properties
     psf_maj_arcsec = config.getfloat("observation", "simple_psf_maj")
-    psf_maj = psf_maj_arcsec * galsim.arcsec
-    psf_min = config.getfloat("observation", "simple_psf_min") * galsim.arcsec
-    psf_pa = config.getfloat("observation", "simple_psf_pa") * galsim.degrees
+    psf_maj = psf_maj_arcsec * arcsectorad
+    #print(psf_maj_arcsec,psf_maj,psf_maj_arcsec*arcsectorad)
+    psf_min = config.getfloat("observation", "simple_psf_min") * arcsectorad
+    psf_pa = config.getfloat("observation", "simple_psf_pa") * degtorad
+
     pixel_scale = config.getfloat("skymodel", "pixel_scale")
     pixel_scale_str = str(pixel_scale).split()[0]
     fov = config.getfloat("field", "field_of_view")
@@ -524,9 +530,12 @@ def runSkyModel(config,process,total_cores):
     header_fourd = w_fourd.to_header()
     header_fourd["BUNIT"] = "JY/PIXEL"
 
-    bmaj = psf_maj / galsim.degrees
-    bmin = psf_min / galsim.degrees
-    bpa = psf_pa / galsim.radians
+    #bmaj = psf_maj / galsim.degrees
+    bmaj=psf_maj / degtorad  #they are in radians, get to degree  
+    #bmin = psf_min / galsim.degrees
+    bmin = psf_min / degtorad #they are in radians, get to degree  
+#    bpa = psf_pa / galsim.radians
+    bpa = psf_pa / degtorad #they are in radians, get to degree  
 
     header_fourd["BMAJ"] = bmaj
     header_fourd["BMIN"] = bmin
