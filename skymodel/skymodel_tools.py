@@ -124,6 +124,4 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
 
 
 
-    print(w.wcs.cdelt)
-    exit()
     return w
