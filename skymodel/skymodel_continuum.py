@@ -15,7 +15,6 @@ import multiprocessing
 import os
 import sys
 import time
-#import galsim
 import numpy as np
 import pickle
 from astropy import units as uns
@@ -530,11 +529,9 @@ def runSkyModel(config,process,total_cores):
     header_fourd = w_fourd.to_header()
     header_fourd["BUNIT"] = "JY/PIXEL"
 
-    #bmaj = psf_maj / galsim.degrees
+
     bmaj=psf_maj / degtorad  #they are in radians, get to degree  
-    #bmin = psf_min / galsim.degrees
     bmin = psf_min / degtorad #they are in radians, get to degree  
-#    bpa = psf_pa / galsim.radians
     bpa = psf_pa / degtorad #they are in radians, get to degree  
 
     header_fourd["BMAJ"] = bmaj
@@ -615,7 +612,7 @@ def runSkyModel(config,process,total_cores):
     
     
   
-    # here we create initialise 3 files:
+    # here we initialise 3 files:
     # 1) continuum cube with all sources for the chosen continuum channels
     # 2) redshift map containing the redshift of the brightest source on the LoS - needed for HI absorption
     # 3) map of the brightest fluxes along the LoS - This is needed for obtaining 3 and could just be a trowaway dummy map. For the moment I am keeping for debugging purposes
@@ -632,7 +629,7 @@ def runSkyModel(config,process,total_cores):
         header_dict['CDELT3'] = np.log(dnu)
 
 
-    # write those 3 empy files    
+    # write those 3 empty files    
     fitsf.write(img2, header=header_dict)
     fitsf_f.write(img2_1D, header=header_dict)
     fitsf_z.write(img2_1D, header=header_dict)
@@ -849,9 +846,6 @@ def runSkyModel(config,process,total_cores):
     ranid[cat["Rs"] <= 0.5] = ranid[cat["Rs"] <= 0.5] - 10
     ranid[cat["Rs"] > 0.5] = ranid[cat["Rs"] > 0.5] + 10
     cat["ranid"] = ranid
-
-
-    
 
     #apply catalogue selection based on pixel projection as otherwise 
     #I get empty borders
