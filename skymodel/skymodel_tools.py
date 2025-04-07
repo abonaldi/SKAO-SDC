@@ -122,6 +122,4 @@ def setup_wcs(config, ndim, cosmology=False, nu_axis=False):
         w.wcs.ctype = ["RA---SIN", "DEC--SIN"]
         w.wcs.cunit = ["deg", "deg"]
 
-
-
     return w

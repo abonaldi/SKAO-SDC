@@ -14,8 +14,20 @@ tstart = time.time()
 from skymodel.skymodel_continuum import runSkyModel
 from skymodel.skymodel_continuum import runCoadd
 
+
+
+# Check if the filename argument is provided
+if len(sys.argv) > 1:
+    filename = sys.argv[1]  # First command-line argument (index 1)
+    print(f"The filename is: {filename}")
+else:
+    print("No filename provided.")
+
+
 config = configparser.ConfigParser()
-config.read('inis/SDC3a/SDC3_continuum_v4_1.ini')
+#config.read('inis/SDC3a/SDC3_continuum_v4_1.ini')
+
+config.read(filename)
 n_cores = int(config.getfloat("pipeline", "n_cores"))
 
 mp.get_context("fork")
